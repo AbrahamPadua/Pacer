@@ -2,10 +2,7 @@ import os
 import asyncio
 import datetime
 import discord
-from dotenv import load_dotenv
 from assistant import get_chat
-
-load_dotenv()
 
 OWNER_ID = int(os.environ["DISCORD_OWNER_ID"])
 

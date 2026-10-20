@@ -1,5 +1,4 @@
 import datetime
-from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 from scheduler_tools import (
@@ -10,8 +9,6 @@ from scheduler_tools import (
     move_calendar_event,
     get_upcoming_assignments
 )
-
-load_dotenv()
 
 client = genai.Client()
 
