@@ -24,7 +24,7 @@ Your job is to manage the user's Google Calendar and Supabase task history:
 """
 
 chat = client.chats.create(
-    model="gemini-2.5-flash",
+    model="gemini-3.8-flash",
     config=types.GenerateContentConfig(
         system_instruction=SYSTEM_PROMPT,
         tools=[
