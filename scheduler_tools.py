@@ -175,6 +175,9 @@ def move_calendar_event(gcal_event_id: str, new_start_iso: str, duration_mins: i
     """Moves an existing flexible Google Calendar block to a new time slot."""
     service = get_calendar_service()
     event = service.events().get(calendarId="primary", eventId=gcal_event_id).execute()
+    # Enforce in code, not just the prompt: only Pacer's own [Flex] blocks may move
+    if event.get("extendedProperties", {}).get("private", {}).get("flexibility") != "movable":
+        return {"error": "This is a fixed event (a class, meeting or anything Pacer didn't book), so it can't be moved."}
     
     new_start = datetime.datetime.fromisoformat(new_start_iso)
     new_end = new_start + datetime.timedelta(minutes=duration_mins)
