@@ -61,13 +61,19 @@ def check_calendar_availability(days_ahead: int = 7) -> list:
     now = datetime.datetime.now(datetime.timezone.utc).isoformat()
     end = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=days_ahead)).isoformat()
     
-    events_result = service.events().list(
-        calendarId="primary", timeMin=now, timeMax=end,
-        singleEvents=True, orderBy="startTime"
-    ).execute()
+    items, page_token = [], None
+    while True:  # Google returns at most one page (250 events by default) per call
+        page = service.events().list(
+            calendarId="primary", timeMin=now, timeMax=end,
+            singleEvents=True, orderBy="startTime", pageToken=page_token
+        ).execute()
+        items += page.get("items", [])
+        page_token = page.get("nextPageToken")
+        if not page_token:
+            break
     
     formatted = []
-    for e in events_result.get("items", []):
+    for e in items:
         props = e.get("extendedProperties", {}).get("private", {})
         formatted.append({
             "event_id": e["id"],

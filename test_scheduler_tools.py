@@ -99,6 +99,13 @@ class ScheduleTest(FakeDbTest):
             st.schedule_calibrated_task("HW3", "math_pset", 120, 150, "2026-10-21T15:00:00", "2026-10-23T23:59:00")
         self.assertEqual(self.tasks, [])
 
+    def test_reads_every_calendar_page(self):
+        def event(event_id):
+            return {"id": event_id, "start": {"dateTime": "s"}, "end": {"dateTime": "e"}}
+        pages = {None: {"items": [event("a")], "nextPageToken": "p2"}, "p2": {"items": [event("b")]}}
+        events = SimpleNamespace(list=lambda pageToken, **_: SimpleNamespace(execute=lambda: pages[pageToken]))
+        st.get_calendar_service = lambda: SimpleNamespace(events=lambda: events)
+        self.assertEqual([e["event_id"] for e in st.check_calendar_availability(70)], ["a", "b"])
 
 
 class MoveGuardTest(unittest.TestCase):
