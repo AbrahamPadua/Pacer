@@ -1,5 +1,7 @@
 import os
+import json
 import datetime
+import subprocess
 from dotenv import load_dotenv
 from supabase import create_client, Client
 from google.auth.transport.requests import Request
@@ -10,6 +12,7 @@ from googleapiclient.discovery import build
 load_dotenv()
 
 SCOPES = ["https://www.googleapis.com/auth/calendar"]
+CANVAS_TODO_HOME = os.environ.get("CANVAS_TODO_HOME", os.path.expanduser("~/canvas-todo-sync"))
 supabase: Client = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_KEY"])
 
 def get_calendar_service():
@@ -181,3 +184,20 @@ def move_calendar_event(gcal_event_id: str, new_start_iso: str, duration_mins: i
     
     updated = service.events().update(calendarId="primary", eventId=gcal_event_id, body=event).execute()
     return {"status": "moved", "event_id": updated["id"], "new_start": new_start_iso, "duration_mins": duration_mins}
+
+
+def get_upcoming_assignments() -> dict:
+    """Lists the user's unfinished Canvas and Gradescope assignments (course, title, exact due time), read from their canvas-todo-sync tool. Read-only."""
+    py = os.path.join(CANVAS_TODO_HOME, ".venv", "Scripts", "python.exe") if os.name == "nt" else os.path.join(CANVAS_TODO_HOME, ".venv", "bin", "python")
+    run = subprocess.run(
+        [py, os.path.join(CANVAS_TODO_HOME, "canvas_todo_sync.py"), "--preview", "--json"],
+        capture_output=True, text=True, timeout=120
+    )
+    if run.returncode != 0:
+        # The tool logs its error to stderr; its last line is the useful part
+        raise RuntimeError(f"canvas-todo-sync failed: {(run.stderr.strip().splitlines() or ['no output'])[-1]}")
+    data = json.loads(run.stdout)
+    return {
+        "assignments": [i for i in data["items"] if not i["complete"]],
+        "warnings": data["warnings"]
+    }
