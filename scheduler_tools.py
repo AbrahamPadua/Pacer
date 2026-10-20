@@ -4,6 +4,7 @@ import datetime
 import subprocess
 from dotenv import load_dotenv
 from supabase import create_client, Client
+from google.auth.exceptions import RefreshError
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -21,11 +22,15 @@ def get_calendar_service():
     if os.path.exists("token.json"):
         creds = Credentials.from_authorized_user_file("token.json", SCOPES)
     if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
+        try:
+            if creds and creds.expired and creds.refresh_token:
+                creds.refresh(Request())
+        except RefreshError:  # Google revoked the sign-in (every 7 days while the app is in Testing)
+            creds = None
+        if not creds or not creds.valid:
             flow = InstalledAppFlow.from_client_secrets_file("credentials.json", SCOPES)
-            creds = flow.run_local_server(port=0)
+            # Give up after 2 minutes so an unanswered sign-in doesn't freeze the bot
+            creds = flow.run_local_server(port=0, timeout_seconds=120)
         with open("token.json", "w") as token:
             token.write(creds.to_json())
     return build("calendar", "v3", credentials=creds)
