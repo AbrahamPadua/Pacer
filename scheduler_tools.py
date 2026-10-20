@@ -40,7 +40,7 @@ def get_calibrated_estimate(category_id: str, user_est_mins: int) -> dict:
     """Looks up the user's historical multiplier for a task category and suggests a realistic duration."""
     res = supabase.table("category_profiles").select("*").eq("category_id", category_id).execute()
     if not res.data:
-        return {"suggested_mins": user_est_mins, "multiplier": 1.0, "max_session_mins": 90}
+        return {"error": f"Unknown category {category_id}"}
     
     profile = res.data[0]
     mult = float(profile["duration_multiplier"])

@@ -75,6 +75,9 @@ class LearningTest(unittest.TestCase):
     def test_tiny_estimate_gets_at_least_5_minutes(self):
         self.assertEqual(st.get_calibrated_estimate("daily_routine", 2)["suggested_mins"], 5)
 
+    def test_unknown_category_is_an_error(self):
+        self.assertEqual(st.get_calibrated_estimate("math_181b", 60), {"error": "Unknown category math_181b"})
+
 
 class MoveGuardTest(unittest.TestCase):
     def move(self, event):
