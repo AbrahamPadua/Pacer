@@ -39,7 +39,7 @@ def get_calibrated_estimate(category_id: str, user_est_mins: int) -> dict:
     
     profile = res.data[0]
     mult = float(profile["duration_multiplier"])
-    suggested = int(round((user_est_mins * mult) / 5.0) * 5)  # Round to nearest 5 mins
+    suggested = max(5, int(round((user_est_mins * mult) / 5.0) * 5))  # Nearest 5 mins, never 0
     return {
         "category_id": category_id,
         "user_est_mins": user_est_mins,
@@ -144,7 +144,8 @@ def log_task_progress_and_learn(task_id: str, minutes_worked_today: int, total_p
         if cat_res.data:
             old_mult = float(cat_res.data[0]["duration_multiplier"])
             samples = int(cat_res.data[0]["sample_count"])
-            observed_ratio = new_actual_mins / max(task["user_est_mins"], 15)
+            # Floor both sides at 15 min so tiny tasks neither drag the multiplier down nor blow it up
+            observed_ratio = max(new_actual_mins, 15) / max(task["user_est_mins"], 15)
             new_mult = round((0.3 * observed_ratio) + (0.7 * old_mult), 3)
             
             supabase.table("category_profiles").update({

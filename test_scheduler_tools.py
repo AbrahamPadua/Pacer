@@ -55,12 +55,26 @@ class LearningTest(unittest.TestCase):
         task = self.add_task("math_pset", 120)
         self.assertEqual(st.log_task_progress_and_learn(task, 150, 100)["new_category_multiplier"], 1.25)
 
+    def test_perfect_short_task_keeps_multiplier(self):
+        task = self.add_task("daily_routine", 5)
+        st.log_task_progress_and_learn(task, 5, 100)
+        self.assertEqual(self.multiplier("daily_routine"), 1.0)
+
+    def test_tiny_guess_cannot_blow_up_multiplier(self):
+        task = self.add_task("daily_routine", 2)
+        st.log_task_progress_and_learn(task, 10, 100)
+        self.assertEqual(self.multiplier("daily_routine"), 1.0)
+
     def test_second_completion_is_refused(self):
         task = self.add_task("math_pset", 120)
         st.log_task_progress_and_learn(task, 150, 100)
         self.assertEqual(st.log_task_progress_and_learn(task, 150, 100), {"error": "Task already completed"})
         self.assertEqual(self.multiplier("math_pset"), 1.25)
         self.assertEqual(self.tasks[0]["actual_mins_spent"], 150)
+
+    def test_tiny_estimate_gets_at_least_5_minutes(self):
+        self.assertEqual(st.get_calibrated_estimate("daily_routine", 2)["suggested_mins"], 5)
+
 
 class MoveGuardTest(unittest.TestCase):
     def move(self, event):
