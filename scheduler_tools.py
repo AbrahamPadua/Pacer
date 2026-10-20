@@ -126,6 +126,8 @@ def log_task_progress_and_learn(task_id: str, minutes_worked_today: int, total_p
         return {"error": "Task not found"}
     
     task = task_res.data[0]
+    if task["status"] == "completed":
+        return {"error": "Task already completed"}
     new_actual_mins = task["actual_mins_spent"] + minutes_worked_today
     
     if total_percent_complete >= 100:
