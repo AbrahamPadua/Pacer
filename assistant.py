@@ -15,7 +15,9 @@ load_dotenv()
 
 client = genai.Client()
 
-SYSTEM_PROMPT = f"""
+
+def system_prompt():
+    return f"""
 You are a personal capacity-aware scheduling assistant. Today's current time is {datetime.datetime.now().isoformat()}.
 Your job is to manage the user's Google Calendar and Supabase task history:
 1. NEVER take the user's time estimate at face value. Always call `get_calibrated_estimate` first to check their historical multiplier for that category (`math_pset`, `cogs_assignment`, `ece_assignment`, `bipn_assignment`, `lab_research`, `chores_errands`, `daily_routine`).
@@ -26,21 +28,33 @@ Your job is to manage the user's Google Calendar and Supabase task history:
 6. Before scheduling an assignment, check `check_calendar_availability` for an existing `[Flex]` block with the same title so you never book it twice.
 """
 
-chat = client.chats.create(
-    model="gemini-3.8-flash",
-    config=types.GenerateContentConfig(
-        system_instruction=SYSTEM_PROMPT,
-        tools=[
-            get_calibrated_estimate,
-            check_calendar_availability,
-            schedule_calibrated_task,
-            log_task_progress_and_learn,
-            move_calendar_event,
-            get_upcoming_assignments
-        ],
-        temperature=0.2
-    )
-)
+
+_chat, _chat_day = None, None
+
+
+def get_chat():
+    """Returns today's chat. Starting fresh each day stops the history (and its cost) from growing forever."""
+    global _chat, _chat_day
+    today = datetime.date.today()
+    if _chat_day != today:
+        _chat_day = today
+        _chat = client.chats.create(
+            model="gemini-3.8-flash",
+            config=types.GenerateContentConfig(
+                system_instruction=system_prompt(),
+                tools=[
+                    get_calibrated_estimate,
+                    check_calendar_availability,
+                    schedule_calibrated_task,
+                    log_task_progress_and_learn,
+                    move_calendar_event,
+                    get_upcoming_assignments
+                ],
+                temperature=0.2
+            )
+        )
+    return _chat
+
 
 if __name__ == "__main__":
     print("Scheduler Assistant Active. Type 'quit' to exit.\n")
@@ -48,5 +62,5 @@ if __name__ == "__main__":
         user_input = input("You: ")
         if user_input.strip().lower() in ["quit", "exit"]:
             break
-        response = chat.send_message(user_input)
+        response = get_chat().send_message(user_input)
         print(f"\nAssistant: {response.text}\n")

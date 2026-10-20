@@ -3,7 +3,7 @@ import asyncio
 import datetime
 import discord
 from dotenv import load_dotenv
-from assistant import chat
+from assistant import get_chat
 
 load_dotenv()
 
@@ -12,7 +12,7 @@ OWNER_ID = int(os.environ["DISCORD_OWNER_ID"])
 intents = discord.Intents.default()
 intents.message_content = True
 bot = discord.Client(intents=intents)
-lock = asyncio.Lock()  # one shared chat history, so handle one message at a time
+lock = asyncio.Lock()  # one shared chat per day, so handle one message at a time
 
 
 @bot.event
@@ -28,12 +28,12 @@ async def on_message(message):
     if not (isinstance(message.channel, discord.DMChannel) or bot.user in message.mentions):
         return
 
-    # The system prompt's time is frozen at startup, so send the real time with every message
+    # The system prompt only knows when today's chat started, so send the real time with every message
     prompt = f"[Current time: {datetime.datetime.now().isoformat()}] {message.content}"
     async with lock, message.channel.typing():
         try:
             # send_message blocks while Gemini calls Calendar/Supabase; keep Discord's event loop free
-            response = await asyncio.to_thread(chat.send_message, prompt)
+            response = await asyncio.to_thread(get_chat().send_message, prompt)
             text = response.text or "(no reply)"
         except Exception as e:
             text = f"Something broke: {e}"
