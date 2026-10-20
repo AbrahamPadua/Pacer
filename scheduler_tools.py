@@ -114,7 +114,12 @@ def schedule_calibrated_task(
             }
         }
     }
-    created_event = service.events().insert(calendarId="primary", body=event_body).execute()
+    try:
+        created_event = service.events().insert(calendarId="primary", body=event_body).execute()
+    except Exception:
+        # Don't leave a task row with no calendar block behind (Gemini usually retries)
+        supabase.table("tasks_log").delete().eq("id", task_id).execute()
+        raise
     
     # 3. Link the Google Calendar event ID back to Supabase
     supabase.table("tasks_log").update({"gcal_event_id": created_event["id"]}).eq("id", task_id).execute()

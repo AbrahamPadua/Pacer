@@ -9,17 +9,24 @@ import scheduler_tools as st
 
 
 class FakeTable:
-    """Just enough of the Supabase query chain for scheduler_tools: select/update + eq + execute."""
+    """Just enough of the Supabase query chain for scheduler_tools: select/update/insert/delete + eq + execute."""
 
     def __init__(self, rows):
-        self.rows = rows
+        self.rows, self.changes, self.deleting = rows, None, False
 
     def select(self, *_):
-        self.changes = None
         return self
 
     def update(self, changes):
         self.changes = changes
+        return self
+
+    def insert(self, row):
+        self.rows.append({"id": str(len(self.rows)), **row})
+        return self.eq("id", self.rows[-1]["id"])
+
+    def delete(self):
+        self.deleting = True
         return self
 
     def eq(self, col, val):
@@ -30,10 +37,12 @@ class FakeTable:
         hits = [r for r in self.rows if r[self.match[0]] == self.match[1]]
         for r in hits:
             r.update(self.changes or {})
+            if self.deleting:
+                self.rows.remove(r)
         return SimpleNamespace(data=[dict(r) for r in hits])
 
 
-class LearningTest(unittest.TestCase):
+class FakeDbTest(unittest.TestCase):
     def setUp(self):
         self.categories = [
             {"category_id": "daily_routine", "duration_multiplier": 1.0, "sample_count": 0, "max_session_mins": 30, "preferred_window": "evening"},
@@ -51,6 +60,8 @@ class LearningTest(unittest.TestCase):
     def multiplier(self, category_id):
         return next(c for c in self.categories if c["category_id"] == category_id)["duration_multiplier"]
 
+
+class LearningTest(FakeDbTest):
     def test_accurate_guess_keeps_multiplier(self):
         task = self.add_task("math_pset", 120)
         self.assertEqual(st.log_task_progress_and_learn(task, 150, 100)["new_category_multiplier"], 1.25)
@@ -77,6 +88,17 @@ class LearningTest(unittest.TestCase):
 
     def test_unknown_category_is_an_error(self):
         self.assertEqual(st.get_calibrated_estimate("math_181b", 60), {"error": "Unknown category math_181b"})
+
+
+class ScheduleTest(FakeDbTest):
+    def test_failed_calendar_write_removes_task_row(self):
+        def insert(**_):
+            raise RuntimeError("calendar down")
+        st.get_calendar_service = lambda: SimpleNamespace(events=lambda: SimpleNamespace(insert=insert))
+        with self.assertRaises(RuntimeError):
+            st.schedule_calibrated_task("HW3", "math_pset", 120, 150, "2026-10-21T15:00:00", "2026-10-23T23:59:00")
+        self.assertEqual(self.tasks, [])
+
 
 
 class MoveGuardTest(unittest.TestCase):
