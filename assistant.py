@@ -10,6 +10,7 @@ from scheduler_tools import (
     get_upcoming_assignments,
     TZ
 )
+from week_image import free_time
 
 client = genai.Client()
 
@@ -24,25 +25,36 @@ Your job is to manage the user's Google Calendar and Supabase task history:
 4. Protect evening rest and social blocks whenever possible. If the user asks "Can I join this club?" or "Can I go out Friday?", check `check_calendar_availability`, calculate total remaining flexible work, and give an honest capacity assessment before changing the calendar.
 5. When the user asks what's due or to plan their homework, call `get_upcoming_assignments`. Map each course to a category by department: MATH -> `math_pset`, COGS -> `cogs_assignment`, ECE -> `ece_assignment`, BIPN -> `bipn_assignment`. If the user hasn't given a time estimate for an assignment, ask for one.
 6. Before scheduling an assignment, check `check_calendar_availability` for an existing `[Flex]` block with the same title so you never book it twice.
-7. Whenever your answer is about the user's schedule (their week or a day, free time, what's coming up, or right after you book or move blocks), call `show_week_image` so a picture of their week is attached under your reply. Skip it only for questions that have nothing to do with their schedule.
+7. When your answer is about a single day (today, tomorrow, Friday, etc.), call `show_day_image` and tell the user exactly when they are free using its `free` list. When your answer is about the week or several days (or right after you book or move blocks across the week), call `show_week_image`. Call at most one of them per reply, and skip both for questions that have nothing to do with their schedule.
 """
 
 
-_week_image_requested = False  # set by the show_week_image tool; safe because the bot handles one message at a time
+_image_request = None  # ("week", None) or ("day", date); safe because the bot handles one message at a time
 
 
 def show_week_image() -> dict:
-    """Attaches a picture of the user's calendar for today and the next 6 days (classes, Pacer's blocks and assignment deadlines) under your reply. Call it whenever your answer is about their schedule."""
-    global _week_image_requested
-    _week_image_requested = True
+    """Attaches a picture of the user's calendar for today and the next 6 days (classes, Pacer's blocks and assignment deadlines) under your reply. Call it when your answer is about the week or several days."""
+    global _image_request
+    _image_request = ("week", None)
     return {"status": "The picture will appear under your reply, so summarize instead of listing every event."}
 
 
-def pop_week_image_request() -> bool:
-    """True once if the reply just sent asked for the week picture."""
-    global _week_image_requested
-    requested, _week_image_requested = _week_image_requested, False
-    return requested
+def show_day_image(date: str = "") -> dict:
+    """Attaches a picture of a single day's schedule (with free-time bands and deadlines) under your reply, and returns that day's free slots. `date` is YYYY-MM-DD (defaults to today). Call it when the user asks about a single day, then tell them their free times from `free`."""
+    global _image_request
+    day = datetime.date.fromisoformat(date) if date else datetime.datetime.now(TZ).date()
+    _image_request = ("day", day)
+    return {
+        **free_time(day),
+        "status": "The day picture will appear under your reply. Tell the user their free times from `free`."
+    }
+
+
+def pop_image_request():
+    """Returns the pending ('week', None) or ('day', date) request from the last reply, and clears it."""
+    global _image_request
+    req, _image_request = _image_request, None
+    return req
 
 
 _chat, _chat_day = None, None
@@ -65,7 +77,8 @@ def get_chat():
                     log_task_progress_and_learn,
                     move_calendar_event,
                     get_upcoming_assignments,
-                    show_week_image
+                    show_week_image,
+                    show_day_image
                 ],
                 temperature=0.2
             )
@@ -81,5 +94,5 @@ if __name__ == "__main__":
             break
         response = get_chat().send_message(user_input)
         print(f"\nAssistant: {response.text}\n")
-        if pop_week_image_request():
-            print("(Pacer attached a picture of your week. It only shows up in Discord.)\n")
+        if req := pop_image_request():
+            print(f"(Pacer attached a picture of your {req[0]}. It only shows up in Discord.)\n")

@@ -49,6 +49,8 @@ The bot starts a new conversation each day, so it won't remember what you said y
 
 Send `week` to get a picture of today and the next 6 days, with your classes, Pacer's blocks and assignment deadlines. It's drawn straight from your calendar and Canvas, so it doesn't use Gemini credits.
 
+Questions about your schedule get a picture too. Ask about one day ("what does my day look like?", "when am I free Friday?") and Pacer lists your free time, counting 8 AM to 10 PM, and attaches a picture of that day. Ask about the week and it attaches the week picture.
+
 To chat in the terminal instead, run `venv/Scripts/python assistant.py`.
 
 ## Run it on a server

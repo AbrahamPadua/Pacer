@@ -9,6 +9,7 @@ os.environ["SUPABASE_URL"] = "https://example.supabase.co"
 os.environ["SUPABASE_KEY"] = "sb_secret_test"
 os.environ["GEMINI_API_KEY"] = "test"
 import assistant
+import week_image as wi
 
 
 class DailyChatTest(unittest.TestCase):
@@ -34,13 +35,24 @@ class DailyChatTest(unittest.TestCase):
         self.assertIn("2026-10-20T20:00:00-07:00", created[0]["config"].system_instruction)
 
 
-class WeekPictureRequestTest(unittest.TestCase):
-    def test_request_is_read_once(self):
-        assistant.pop_week_image_request()
-        self.assertFalse(assistant.pop_week_image_request())
+class ImageRequestTest(unittest.TestCase):
+    def test_week_request_is_read_once(self):
+        assistant.pop_image_request()
+        self.assertIsNone(assistant.pop_image_request())
         assistant.show_week_image()
-        self.assertTrue(assistant.pop_week_image_request())
-        self.assertFalse(assistant.pop_week_image_request())
+        self.assertEqual(assistant.pop_image_request(), ("week", None))
+        self.assertIsNone(assistant.pop_image_request())
+
+    def test_day_request_returns_free_time_and_clears(self):
+        assistant.pop_image_request()
+        with mock.patch.object(wi, "list_events", lambda start, end: []):
+            res = assistant.show_day_image("2026-10-23")
+        self.assertEqual(res["date"], "2026-10-23")
+        self.assertEqual(res["free"], ["8 AM-10 PM (14h)"])
+        self.assertEqual(res["total"], "14h")
+        self.assertIn("status", res)
+        self.assertEqual(assistant.pop_image_request(), ("day", datetime.date(2026, 10, 23)))
+        self.assertIsNone(assistant.pop_image_request())
 
 
 if __name__ == "__main__":

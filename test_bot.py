@@ -1,6 +1,7 @@
 import os
 import asyncio
 import contextlib
+import datetime
 import unittest
 from types import SimpleNamespace
 from unittest import mock
@@ -11,6 +12,7 @@ os.environ.update(SUPABASE_URL="https://example.supabase.co", SUPABASE_KEY="sb_s
 import discord
 import assistant
 import bot
+import week_image as wi
 
 OWNER, STRANGER, BOT_USER = SimpleNamespace(id=111), SimpleNamespace(id=222), SimpleNamespace(id=999)
 
@@ -35,6 +37,7 @@ class OnMessageTest(unittest.IsolatedAsyncioTestCase):
         self.enterContext(mock.patch.object(bot.bot._connection, "user", BOT_USER))
         self.enterContext(mock.patch.object(bot, "get_chat", lambda: SimpleNamespace(send_message=self.gemini)))
         self.enterContext(mock.patch.object(bot, "week_png", lambda: b"\x89PNG fake"))
+        self.enterContext(mock.patch.object(bot, "day_png", lambda d: b"\x89PNG fake day"))
 
     def gemini(self, prompt):
         self.prompts.append(prompt)
@@ -82,8 +85,21 @@ class OnMessageTest(unittest.IsolatedAsyncioTestCase):
             await self.send("what does my week look like?")
         self.assertEqual((self.replies[1:], self.files), (["Busy Wednesday, free Saturday."], ["week.png"]))
 
+    async def test_gemini_attaches_the_day_picture(self):
+        drawn = []
+
+        def gemini_shows_day(prompt):
+            assistant.show_day_image("2026-10-23")
+            return SimpleNamespace(text="You are free 8 AM-10 PM.")
+        with mock.patch.object(wi, "list_events", lambda start, end: []), \
+                mock.patch.object(bot, "day_png", lambda d: drawn.append(d) or b"\x89PNG fake day"), \
+                mock.patch.object(bot, "get_chat", lambda: SimpleNamespace(send_message=gemini_shows_day)):
+            await self.send("what does Friday look like?")
+        self.assertEqual((self.replies, self.files, drawn),
+                         (["You are free 8 AM-10 PM."], ["day.png"], [datetime.date(2026, 10, 23)]))
+
     async def test_leftover_picture_request_is_dropped(self):
-        assistant._week_image_requested = True  # a reply that failed after Gemini called the tool
+        assistant._image_request = ("week", None)  # a reply that failed after Gemini called the tool
         await self.send("thanks!")
         self.assertEqual(self.files, [])
 
