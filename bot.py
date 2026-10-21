@@ -9,6 +9,7 @@ from scheduler_tools import TZ
 from week_image import day_png, week_png
 
 OWNER_ID = int(os.environ["DISCORD_OWNER_ID"])
+PACER_CHANNEL_ID = int(os.environ.get("PACER_CHANNEL_ID") or 0)  # optional; 0 matches no channel
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -23,10 +24,11 @@ async def on_ready():
 
 @bot.event
 async def on_message(message):
-    # Only you can touch your calendar, and only when you're talking to the bot
+    # Only you can touch your calendar, and only when you're talking to the bot: a DM, a mention, or the Pacer channel
     if message.author.id != OWNER_ID:
         return
-    if not (isinstance(message.channel, discord.DMChannel) or bot.user in message.mentions):
+    if not (isinstance(message.channel, discord.DMChannel) or bot.user in message.mentions
+            or message.channel.id == PACER_CHANNEL_ID):
         return
 
     # "week" (or "@Pacer week") sends the week image straight from the calendar, without asking Gemini

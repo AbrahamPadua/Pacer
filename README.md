@@ -33,7 +33,7 @@ You need Python 3.11 or newer.
    DISCORD_BOT_TOKEN=...
    DISCORD_OWNER_ID=...
    ```
-   If canvas-todo-sync isn't in `~/canvas-todo-sync`, also set `CANVAS_TODO_HOME` to its folder.
+   If canvas-todo-sync isn't in `~/canvas-todo-sync`, also set `CANVAS_TODO_HOME` to its folder. To talk to Pacer in one server channel without @mentioning it, set `PACER_CHANNEL_ID` to that channel's ID (with Developer Mode on, right-click the channel and pick Copy Channel ID).
 
 `.env`, `credentials.json` and `token.json` are in `.gitignore`. Keep them out of git.
 
@@ -43,7 +43,7 @@ You need Python 3.11 or newer.
 venv/Scripts/python bot.py
 ```
 
-Then DM the bot, or @mention it in your server. It only answers the user in `DISCORD_OWNER_ID`. The first calendar request opens a Google sign-in page in your browser. You have 2 minutes to finish it, and it saves `token.json`.
+Then DM the bot, or @mention it in your server. In the `PACER_CHANNEL_ID` channel, if you set one, every message from you counts without a mention. It only answers the user in `DISCORD_OWNER_ID`. The first calendar request opens a Google sign-in page in your browser. You have 2 minutes to finish it, and it saves `token.json`.
 
 The bot starts a new conversation each day, so it won't remember what you said yesterday. Your tasks and multipliers stay in Supabase.
 

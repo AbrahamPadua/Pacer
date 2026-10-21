@@ -18,6 +18,9 @@ OWNER, STRANGER, BOT_USER = SimpleNamespace(id=111), SimpleNamespace(id=222), Si
 
 
 class FakeServerChannel:
+    def __init__(self, channel_id=444):
+        self.id = channel_id
+
     def typing(self):
         return contextlib.AsyncExitStack()
 
@@ -62,6 +65,14 @@ class OnMessageTest(unittest.IsolatedAsyncioTestCase):
     async def test_owner_is_ignored_in_a_server_without_a_mention(self):
         await self.send("going out friday lol", mentioned=False)
         self.assertEqual((self.replies, self.prompts), ([], []))
+
+    async def test_pacer_channel_needs_no_mention_but_is_still_owner_only(self):
+        self.enterContext(mock.patch.object(bot, "PACER_CHANNEL_ID", 555))
+        await self.send("what does my day look like?", mentioned=False, channel=FakeServerChannel(555))
+        await self.send("lol same", mentioned=False, channel=FakeServerChannel(444))  # any other channel
+        await self.send("delete my classes", author=STRANGER, mentioned=False, channel=FakeServerChannel(555))
+        self.assertEqual((self.replies, self.prompts[0].endswith("what does my day look like?")), (["ok"], True))
+        self.assertEqual(len(self.prompts), 1)
 
     async def test_owner_dm_goes_to_gemini_with_the_time(self):
         await self.send("what's due this week?", mentioned=False, channel=FakeDM())
