@@ -13,7 +13,7 @@ Ask it things like "what's due this week?", "plan my ECE homework" or "can I go 
 
 ## Setup
 
-You need Python 3.10 or newer.
+You need Python 3.11 or newer.
 
 1. Install the packages:
    ```
