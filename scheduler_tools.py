@@ -64,9 +64,14 @@ def get_calibrated_estimate(category_id: str, user_est_mins: int) -> dict:
 
 def check_calendar_availability(days_ahead: int = 7) -> list:
     """Fetches upcoming events from Google Calendar so the assistant can see fixed commitments and open gaps."""
+    now = datetime.datetime.now(datetime.timezone.utc)
+    return list_events(now, now + datetime.timedelta(days=days_ahead))
+
+
+def list_events(time_min: datetime.datetime, time_max: datetime.datetime) -> list:
+    """Every Google Calendar event between two times, in the shape the assistant sees."""
     service = get_calendar_service()
-    now = datetime.datetime.now(datetime.timezone.utc).isoformat()
-    end = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=days_ahead)).isoformat()
+    now, end = time_min.isoformat(), time_max.isoformat()
     
     items, page_token = [], None
     while True:  # Google returns at most one page (250 events by default) per call
