@@ -2,6 +2,7 @@ import os
 import json
 import datetime
 import subprocess
+import sys
 from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
 from supabase import create_client, Client
@@ -30,6 +31,10 @@ def get_calendar_service():
         except RefreshError:  # Google revoked the sign-in (every 7 days while the app is in Testing)
             creds = None
         if not creds or not creds.valid:
+            if sys.stdin is None or not sys.stdin.isatty():
+                # Nobody can finish a browser sign-in on a server service, so say what to do instead of waiting
+                raise RuntimeError("Google sign-in expired. Sign in on your laptop (python assistant.py), "
+                                   "then copy token.json to the server and restart the bot.")
             flow = InstalledAppFlow.from_client_secrets_file("credentials.json", SCOPES)
             # Give up after 2 minutes so an unanswered sign-in doesn't freeze the bot
             creds = flow.run_local_server(port=0, timeout_seconds=120)

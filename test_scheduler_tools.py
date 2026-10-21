@@ -1,6 +1,10 @@
 import os
+import sys
+import tempfile
 import unittest
 from types import SimpleNamespace
+from unittest import mock
+from google.auth.exceptions import RefreshError
 
 # Dummy values win over .env (load_dotenv never overrides), so tests can't touch real data
 os.environ["SUPABASE_URL"] = "https://example.supabase.co"
@@ -94,7 +98,8 @@ class ScheduleTest(FakeDbTest):
     def test_failed_calendar_write_removes_task_row(self):
         def insert(**_):
             raise RuntimeError("calendar down")
-        st.get_calendar_service = lambda: SimpleNamespace(events=lambda: SimpleNamespace(insert=insert))
+        self.enterContext(mock.patch.object(
+            st, "get_calendar_service", lambda: SimpleNamespace(events=lambda: SimpleNamespace(insert=insert))))
         with self.assertRaises(RuntimeError):
             st.schedule_calibrated_task("HW3", "math_pset", 120, 150, "2026-10-21T15:00:00", "2026-10-23T23:59:00")
         self.assertEqual(self.tasks, [])
@@ -104,7 +109,7 @@ class ScheduleTest(FakeDbTest):
             return {"id": event_id, "start": {"dateTime": "s"}, "end": {"dateTime": "e"}}
         pages = {None: {"items": [event("a")], "nextPageToken": "p2"}, "p2": {"items": [event("b")]}}
         events = SimpleNamespace(list=lambda pageToken, **_: SimpleNamespace(execute=lambda: pages[pageToken]))
-        st.get_calendar_service = lambda: SimpleNamespace(events=lambda: events)
+        self.enterContext(mock.patch.object(st, "get_calendar_service", lambda: SimpleNamespace(events=lambda: events)))
         self.assertEqual([e["event_id"] for e in st.check_calendar_availability(70)], ["a", "b"])
 
 
@@ -115,7 +120,7 @@ class MoveGuardTest(unittest.TestCase):
             get=lambda **_: SimpleNamespace(execute=lambda: event),
             update=lambda body, **_: updates.append(body) or SimpleNamespace(execute=lambda: {"id": "e1"}),
         )
-        st.get_calendar_service = lambda: SimpleNamespace(events=lambda: events)
+        self.enterContext(mock.patch.object(st, "get_calendar_service", lambda: SimpleNamespace(events=lambda: events)))
         return st.move_calendar_event("e1", "2026-10-21T15:00:00", 60), updates
 
     def test_fixed_event_is_not_moved(self):
@@ -128,6 +133,39 @@ class MoveGuardTest(unittest.TestCase):
         result, updates = self.move(flex)
         self.assertEqual(result["status"], "moved")
         self.assertEqual(updates[0]["start"]["dateTime"], "2026-10-21T15:00:00")
+
+
+class SignInTest(unittest.TestCase):
+    """Google rejects the saved sign-in; what happens next depends on whether someone is at a terminal."""
+
+    def setUp(self):
+        self.old_cwd, self.tmp = os.getcwd(), tempfile.TemporaryDirectory()
+        os.chdir(self.tmp.name)  # token.json reads and writes land here, never in the project
+        with open("token.json", "w") as f:
+            f.write("{}")
+        self.flow_calls = []
+
+        def refresh(_):
+            raise RefreshError("invalid_grant: Token has been expired or revoked.")
+        expired = SimpleNamespace(valid=False, expired=True, refresh_token="r", refresh=refresh)
+        new = SimpleNamespace(valid=True, to_json=lambda: '{"new": true}')
+        flow = SimpleNamespace(run_local_server=lambda **kw: self.flow_calls.append(kw) or new)
+        for name, fake in [("Credentials", SimpleNamespace(from_authorized_user_file=lambda *a: expired)),
+                           ("InstalledAppFlow", SimpleNamespace(from_client_secrets_file=lambda *a: flow)),
+                           ("build", lambda *a, **kw: "service")]:
+            patcher = mock.patch.object(st, name, fake)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def tearDown(self):
+        os.chdir(self.old_cwd)
+        self.tmp.cleanup()
+
+    def test_server_without_terminal_fails_fast(self):
+        with mock.patch.object(sys, "stdin", SimpleNamespace(isatty=lambda: False)):
+            with self.assertRaisesRegex(RuntimeError, "copy token.json"):
+                st.get_calendar_service()
+        self.assertEqual(self.flow_calls, [])
 
 
 if __name__ == "__main__":
