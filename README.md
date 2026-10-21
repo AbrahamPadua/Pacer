@@ -49,6 +49,65 @@ The bot starts a new conversation each day, so it won't remember what you said y
 
 To chat in the terminal instead, run `venv/Scripts/python assistant.py`.
 
+## Run it on a server
+
+The bot can run on any always-on Linux machine, such as an Azure for Students VM. These steps assume Ubuntu 24.04 and a user that can run `sudo`.
+
+1. On the server, install the packages:
+   ```
+   sudo apt update && sudo apt install -y python3-venv
+   git clone https://github.com/AbrahamPadua/Pacer.git ~/Pacer
+   cd ~/Pacer
+   python3 -m venv venv
+   venv/bin/pip install -r requirements.txt
+   ```
+2. Sign in to Google on your own computer first (see Run above). The server has no browser to show the sign-in page. Then copy the secret files from your computer to the server:
+   ```
+   scp .env credentials.json token.json <user>@<server>:~/Pacer/
+   ```
+3. For "what's due" answers, copy `canvas_todo_sync.py`, `requirements.txt` and `config.json` from canvas-todo-sync into `~/canvas-todo-sync` on the server, then set up its environment there:
+   ```
+   cd ~/canvas-todo-sync
+   python3 -m venv .venv
+   .venv/bin/pip install -r requirements.txt
+   ```
+   Pacer only uses the tool's read-only preview, so the server doesn't need its Microsoft sign-in or its schedule. Keep the To Do sync running on one machine only.
+4. Make the secret files readable only by you:
+   ```
+   chmod 600 ~/Pacer/.env ~/Pacer/token.json ~/Pacer/credentials.json ~/canvas-todo-sync/config.json
+   ```
+5. Install the bot as a service, so it starts at boot and restarts after a crash:
+   ```
+   sudo tee /etc/systemd/system/pacer.service > /dev/null <<EOF
+   [Unit]
+   Description=Pacer Discord bot
+   After=network-online.target
+   Wants=network-online.target
+
+   [Service]
+   User=$USER
+   WorkingDirectory=$HOME/Pacer
+   ExecStart=$HOME/Pacer/venv/bin/python -u bot.py
+   Restart=always
+   RestartSec=10
+
+   [Install]
+   WantedBy=multi-user.target
+   EOF
+   sudo systemctl daemon-reload
+   sudo systemctl enable --now pacer
+   ```
+   `journalctl -u pacer -f` shows the log. You should see `Logged in as` within a few seconds.
+6. Stop any other copy of the bot, such as one on your laptop. With two copies running, every message gets two answers and your calendar gets booked twice.
+
+After you push changes, update the server with:
+
+```
+cd ~/Pacer && git pull && venv/bin/pip install -r requirements.txt && sudo systemctl restart pacer
+```
+
+If Google signs you out, the bot replies that the sign-in expired. Sign in again on your computer, copy the new `token.json` to the server, and run `sudo systemctl restart pacer`.
+
 ## Tests
 
 ```
