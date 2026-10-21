@@ -3,6 +3,7 @@ import asyncio
 import datetime
 import discord
 from assistant import get_chat
+from scheduler_tools import TZ
 
 OWNER_ID = int(os.environ["DISCORD_OWNER_ID"])
 
@@ -26,7 +27,7 @@ async def on_message(message):
         return
 
     # The system prompt only knows when today's chat started, so send the real time with every message
-    prompt = f"[Current time: {datetime.datetime.now().isoformat()}] {message.content}"
+    prompt = f"[Current time: {datetime.datetime.now(TZ).isoformat()}] {message.content}"
     async with lock, message.channel.typing():
         try:
             # send_message blocks while Gemini calls Calendar/Supabase; keep Discord's event loop free

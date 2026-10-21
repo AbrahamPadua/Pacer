@@ -7,7 +7,8 @@ from scheduler_tools import (
     schedule_calibrated_task,
     log_task_progress_and_learn,
     move_calendar_event,
-    get_upcoming_assignments
+    get_upcoming_assignments,
+    TZ
 )
 
 client = genai.Client()
@@ -15,7 +16,7 @@ client = genai.Client()
 
 def system_prompt():
     return f"""
-You are a personal capacity-aware scheduling assistant. Today's current time is {datetime.datetime.now().isoformat()}.
+You are a personal capacity-aware scheduling assistant. Today's current time is {datetime.datetime.now(TZ).isoformat()}.
 Your job is to manage the user's Google Calendar and Supabase task history:
 1. NEVER take the user's time estimate at face value. Always call `get_calibrated_estimate` first to check their historical multiplier for that category (`math_pset`, `cogs_assignment`, `ece_assignment`, `bipn_assignment`, `lab_research`, `chores_errands`, `daily_routine`).
 2. If a calibrated task exceeds `max_session_mins` (usually 90 mins), recommend splitting it across multiple blocks.
@@ -32,7 +33,7 @@ _chat, _chat_day = None, None
 def get_chat():
     """Returns today's chat. Starting fresh each day stops the history (and its cost) from growing forever."""
     global _chat, _chat_day
-    today = datetime.date.today()
+    today = datetime.datetime.now(TZ).date()
     if _chat_day != today:
         _chat_day = today
         _chat = client.chats.create(

@@ -2,6 +2,7 @@ import os
 import json
 import datetime
 import subprocess
+from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
 from supabase import create_client, Client
 from google.auth.exceptions import RefreshError
@@ -13,6 +14,7 @@ from googleapiclient.discovery import build
 load_dotenv()
 
 SCOPES = ["https://www.googleapis.com/auth/calendar"]
+TZ = ZoneInfo("America/Los_Angeles")  # the user's time zone; a server's own clock is often UTC
 CANVAS_TODO_HOME = os.environ.get("CANVAS_TODO_HOME", os.path.expanduser("~/canvas-todo-sync"))
 supabase: Client = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_KEY"])
 
@@ -110,8 +112,8 @@ def schedule_calibrated_task(
     event_body = {
         "summary": f"[Flex] {title}",
         "description": f"User Est: {user_est_mins}m | AI Calibrated: {ai_suggested_mins}m",
-        "start": {"dateTime": start_dt.isoformat(), "timeZone": "America/Los_Angeles"},
-        "end": {"dateTime": end_dt.isoformat(), "timeZone": "America/Los_Angeles"},
+        "start": {"dateTime": start_dt.isoformat(), "timeZone": TZ.key},
+        "end": {"dateTime": end_dt.isoformat(), "timeZone": TZ.key},
         "extendedProperties": {
             "private": {
                 "task_db_id": str(task_id),

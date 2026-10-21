@@ -12,16 +12,26 @@ import assistant
 
 
 class DailyChatTest(unittest.TestCase):
-    def test_new_chat_each_day(self):
-        created = []
+    def test_new_chat_each_pacific_day(self):
+        created, clock = [], {}
+
+        class FakeDatetime(datetime.datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return clock["now"].astimezone(tz)
+
         client = SimpleNamespace(chats=SimpleNamespace(create=lambda **kw: created.append(kw) or object()))
-        days = iter([datetime.date(2026, 10, 20), datetime.date(2026, 10, 20), datetime.date(2026, 10, 21)])
-        fake_datetime = SimpleNamespace(date=SimpleNamespace(today=lambda: next(days)), datetime=datetime.datetime)
-        with mock.patch.object(assistant, "client", client), mock.patch.object(assistant, "datetime", fake_datetime):
+        utc = datetime.timezone.utc
+        with mock.patch.object(assistant, "client", client), \
+                mock.patch.object(assistant, "datetime", SimpleNamespace(datetime=FakeDatetime)):
+            clock["now"] = datetime.datetime(2026, 10, 21, 3, 0, tzinfo=utc)  # Tue Oct 20, 8:00 PM Pacific
             first = assistant.get_chat()
-            self.assertIs(assistant.get_chat(), first)  # same day: keep the conversation
-            self.assertIsNot(assistant.get_chat(), first)  # next day: start fresh
+            clock["now"] = datetime.datetime(2026, 10, 21, 6, 59, tzinfo=utc)  # 11:59 PM Pacific, same day
+            self.assertIs(assistant.get_chat(), first)
+            clock["now"] = datetime.datetime(2026, 10, 21, 7, 1, tzinfo=utc)  # 12:01 AM Pacific, next day
+            self.assertIsNot(assistant.get_chat(), first)
         self.assertEqual(len(created), 2)
+        self.assertIn("2026-10-20T20:00:00-07:00", created[0]["config"].system_instruction)
 
 
 if __name__ == "__main__":
