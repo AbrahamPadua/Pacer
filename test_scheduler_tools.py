@@ -1,4 +1,6 @@
 import os
+import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -166,6 +168,30 @@ class SignInTest(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "copy token.json"):
                 st.get_calendar_service()
         self.assertEqual(self.flow_calls, [])
+
+    def test_terminal_falls_back_to_new_sign_in(self):
+        with mock.patch.object(sys, "stdin", SimpleNamespace(isatty=lambda: True)):
+            self.assertEqual(st.get_calendar_service(), "service")
+        self.assertEqual(self.flow_calls, [{"port": 0, "timeout_seconds": 120}])
+        with open("token.json") as f:
+            self.assertEqual(f.read(), '{"new": true}')
+
+
+class AssignmentsTest(unittest.TestCase):
+    def run_tool(self, returncode, stdout="", stderr=""):
+        fake_run = lambda *a, **kw: subprocess.CompletedProcess(a, returncode, stdout, stderr)
+        with mock.patch.object(st.subprocess, "run", fake_run):
+            return st.get_upcoming_assignments()
+
+    def test_finished_assignments_are_dropped(self):
+        out = json.dumps({"items": [{"title": "HW2", "complete": True}, {"title": "HW3", "complete": False}],
+                          "warnings": ["Gradescope skipped"]})
+        self.assertEqual(self.run_tool(0, out),
+                         {"assignments": [{"title": "HW3", "complete": False}], "warnings": ["Gradescope skipped"]})
+
+    def test_failed_run_reports_its_last_error_line(self):
+        with self.assertRaisesRegex(RuntimeError, "^canvas-todo-sync failed: ERROR Canvas token was rejected$"):
+            self.run_tool(1, stderr="INFO starting\nERROR Canvas token was rejected\n")
 
 
 if __name__ == "__main__":
