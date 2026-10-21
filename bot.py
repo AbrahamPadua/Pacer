@@ -4,7 +4,7 @@ import re
 import asyncio
 import datetime
 import discord
-from assistant import get_chat
+from assistant import get_chat, pop_week_image_request
 from scheduler_tools import TZ
 from week_image import week_png
 
@@ -41,16 +41,26 @@ async def on_message(message):
 
     # The system prompt only knows when today's chat started, so send the real time with every message
     prompt = f"[Current time: {datetime.datetime.now(TZ).isoformat()}] {message.content}"
+    image = None
     async with lock, message.channel.typing():
         try:
+            pop_week_image_request()  # drop a request left over from a reply that failed midway
             # send_message blocks while Gemini calls Calendar/Supabase; keep Discord's event loop free
             response = await asyncio.to_thread(get_chat().send_message, prompt)
             text = response.text or "(no reply)"
+            if pop_week_image_request():  # Gemini called show_week_image
+                try:
+                    image = await asyncio.to_thread(week_png)
+                except Exception as e:
+                    print(f"week image failed: {e}")
+                    text += f"\n\n(Couldn't draw your week: {e})"
         except Exception as e:
             text = f"Something broke: {e}"
 
-    for i in range(0, len(text), 2000):  # Discord's message length limit
-        await message.reply(text[i:i + 2000])
+    chunks = [text[i:i + 2000] for i in range(0, len(text), 2000)]  # Discord's message length limit
+    for i, chunk in enumerate(chunks):
+        last = i == len(chunks) - 1  # the picture goes under the end of the answer
+        await message.reply(chunk, file=discord.File(io.BytesIO(image), "week.png") if last and image else None)
 
 
 if __name__ == "__main__":

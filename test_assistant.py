@@ -34,5 +34,14 @@ class DailyChatTest(unittest.TestCase):
         self.assertIn("2026-10-20T20:00:00-07:00", created[0]["config"].system_instruction)
 
 
+class WeekPictureRequestTest(unittest.TestCase):
+    def test_request_is_read_once(self):
+        assistant.pop_week_image_request()
+        self.assertFalse(assistant.pop_week_image_request())
+        assistant.show_week_image()
+        self.assertTrue(assistant.pop_week_image_request())
+        self.assertFalse(assistant.pop_week_image_request())
+
+
 if __name__ == "__main__":
     unittest.main()
