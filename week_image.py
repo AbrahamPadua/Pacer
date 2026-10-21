@@ -30,7 +30,8 @@ def week_png() -> bytes:
     start = dt.datetime.combine(now.date(), dt.time(0), TZ)
     try:
         assignments = get_upcoming_assignments()["assignments"]
-    except Exception:
+    except Exception as e:
+        print(f"week: deadlines unavailable: {e}")  # lands in the server log (journalctl -u pacer)
         assignments = None  # still worth sending the calendar; the image says deadlines are missing
     return render_week(list_events(start, start + dt.timedelta(days=7)), assignments, now)
 

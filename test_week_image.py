@@ -1,7 +1,10 @@
 import os
+import contextlib
 import datetime as dt
+import io
 import struct
 import unittest
+from unittest import mock
 
 # Dummy values win over .env (load_dotenv never overrides), so tests can't touch real data
 os.environ["SUPABASE_URL"] = "https://example.supabase.co"
@@ -74,6 +77,18 @@ class RenderTest(unittest.TestCase):
     def test_draws_without_deadlines_or_events(self):
         self.assert_full_png(wi.render_week(self.events, None, self.now))
         self.assert_full_png(wi.render_week([], [], self.now))
+
+
+class WeekPngTest(unittest.TestCase):
+    def test_missing_deadlines_are_logged_and_the_image_still_goes_out(self):
+        def broken():
+            raise RuntimeError("canvas-todo-sync failed: ERROR Canvas token was rejected")
+        log = io.StringIO()
+        with mock.patch.object(wi, "get_upcoming_assignments", broken), \
+                mock.patch.object(wi, "list_events", lambda start, end: []), contextlib.redirect_stdout(log):
+            png = wi.week_png()
+        self.assertTrue(png.startswith(b"\x89PNG"))
+        self.assertIn("Canvas token was rejected", log.getvalue())
 
 
 if __name__ == "__main__":
