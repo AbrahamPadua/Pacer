@@ -178,6 +178,34 @@ class SignInTest(unittest.TestCase):
 
 
 class AssignmentsTest(unittest.TestCase):
+    def setUp(self):
+        self.enterContext(mock.patch.object(st, "_assignments_cache", (float("-inf"), None)))
+
+    def test_preview_is_reused_for_two_minutes_but_failures_are_not(self):
+        runs = []
+
+        def fake_run(*a, **kw):
+            runs.append(1)
+            if len(runs) == 1:
+                return subprocess.CompletedProcess(a, 1, "", "ERROR Canvas is down")
+            return subprocess.CompletedProcess(a, 0, json.dumps({"items": [], "warnings": []}), "")
+        with mock.patch.object(st.subprocess, "run", fake_run), mock.patch.object(st.time, "monotonic") as clock:
+            clock.return_value = 1000.0
+            with self.assertRaises(RuntimeError):
+                st.get_upcoming_assignments()
+            st.get_upcoming_assignments()  # the failure wasn't kept, so this reads again
+            clock.return_value = 1119.0
+            st.get_upcoming_assignments()  # within 2 minutes: reused
+            self.assertEqual(len(runs), 2)
+            clock.return_value = 1121.0
+            st.get_upcoming_assignments()  # older than 2 minutes: read again
+            self.assertEqual(len(runs), 3)
+
+    def test_fresh_server_clock_still_reads(self):
+        with mock.patch.object(st.time, "monotonic", return_value=5.0):  # a VM that just booted
+            self.assertEqual(self.run_tool(0, json.dumps({"items": [], "warnings": []})),
+                             {"assignments": [], "warnings": []})
+
     def run_tool(self, returncode, stdout="", stderr=""):
         fake_run = lambda *a, **kw: subprocess.CompletedProcess(a, returncode, stdout, stderr)
         with mock.patch.object(st.subprocess, "run", fake_run):

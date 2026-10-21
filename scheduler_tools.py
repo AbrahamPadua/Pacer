@@ -3,6 +3,7 @@ import json
 import datetime
 import subprocess
 import sys
+import time
 from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
 from supabase import create_client, Client
@@ -220,8 +221,15 @@ def move_calendar_event(gcal_event_id: str, new_start_iso: str, duration_mins: i
     return {"status": "moved", "event_id": updated["id"], "new_start": new_start_iso, "duration_mins": duration_mins}
 
 
+_assignments_cache = (float("-inf"), None)  # (time.monotonic() when read, result)
+
+
 def get_upcoming_assignments() -> dict:
     """Lists the user's unfinished Canvas and Gradescope assignments (course, title, exact due time), read from their canvas-todo-sync tool. Read-only."""
+    global _assignments_cache
+    # The preview takes ~8 s; a schedule answer reads it for Gemini and again for the week picture
+    if time.monotonic() - _assignments_cache[0] < 120:
+        return _assignments_cache[1]
     py = os.path.join(CANVAS_TODO_HOME, ".venv", "Scripts", "python.exe") if os.name == "nt" else os.path.join(CANVAS_TODO_HOME, ".venv", "bin", "python")
     run = subprocess.run(
         [py, os.path.join(CANVAS_TODO_HOME, "canvas_todo_sync.py"), "--preview", "--json"],
@@ -231,7 +239,9 @@ def get_upcoming_assignments() -> dict:
         # The tool logs its error to stderr; its last line is the useful part
         raise RuntimeError(f"canvas-todo-sync failed: {(run.stderr.strip().splitlines() or ['no output'])[-1]}")
     data = json.loads(run.stdout)
-    return {
+    result = {
         "assignments": [i for i in data["items"] if not i["complete"]],
         "warnings": data["warnings"]
     }
+    _assignments_cache = (time.monotonic(), result)
+    return result
