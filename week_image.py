@@ -88,6 +88,13 @@ def layout(events, days):
     return blocks
 
 
+def visible_hours(blocks, due_hours):
+    """First and last hour of the grid: 8 AM to 10 PM, stretched to fit every event and deadline."""
+    top = math.floor(min([8.0] + [b["s"] for b in blocks] + due_hours))
+    bottom = 24 if any(h > 22 for h in due_hours) else math.ceil(max([22.0] + [b["e"] for b in blocks]))
+    return top, bottom
+
+
 def render_week(events, assignments, now) -> bytes:
     """The 7 days from `now` as a PNG. `assignments` is None when the deadlines couldn't be read."""
     days = [now.date() + dt.timedelta(d) for d in range(7)]
@@ -102,8 +109,7 @@ def render_week(events, assignments, now) -> bytes:
     courses = sorted({b["course"] for b in blocks if b["course"]} | {c for items in dues.values() for c, _ in items})
     colors = {c: PALETTE[i % len(PALETTE)] for i, c in enumerate(courses)}
 
-    top = math.floor(min([8.0] + [b["s"] for b in blocks]))
-    bottom = 24 if any(h > 22 for _, h, _ in dues) else math.ceil(max([22.0] + [b["e"] for b in blocks]))
+    top, bottom = visible_hours(blocks, [h for _, h, _ in dues])
     fig = Figure(figsize=(FIG_W, FIG_H), dpi=DPI, facecolor=BG)
     ax, head = fig.add_axes(GRID_BOX, facecolor=COLUMN), fig.add_axes(HEAD_BOX)
     ax.set_xlim(0, 7)

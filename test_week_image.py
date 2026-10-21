@@ -40,6 +40,18 @@ class LayoutTest(unittest.TestCase):
                                    DAYS), [])
 
 
+class VisibleHoursTest(unittest.TestCase):
+    def test_default_day_is_8_am_to_10_pm(self):
+        self.assertEqual(wi.visible_hours([], []), (8, 22))
+
+    def test_grid_stretches_to_early_events_and_deadlines(self):
+        self.assertEqual(wi.visible_hours([{"s": 7.5, "e": 8.5}], []), (7, 22))
+        self.assertEqual(wi.visible_hours([], [6.0]), (6, 22))  # a 6 AM deadline must not be drawn at 8 AM
+
+    def test_late_deadline_runs_the_grid_to_midnight(self):
+        self.assertEqual(wi.visible_hours([], [23 + 59 / 60]), (8, 24))
+
+
 class RenderTest(unittest.TestCase):
     events = [event("COGS 107A LE", "2026-10-20T09:30:00-07:00", "2026-10-20T10:50:00-07:00"),
               event("ECE 161A LE", "2026-10-20T09:30:00-07:00", "2026-10-20T10:50:00-07:00"),
