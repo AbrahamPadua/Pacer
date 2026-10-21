@@ -47,6 +47,8 @@ Then DM the bot, or @mention it in your server. It only answers the user in `DIS
 
 The bot starts a new conversation each day, so it won't remember what you said yesterday. Your tasks and multipliers stay in Supabase.
 
+Send `week` to get a picture of today and the next 6 days, with your classes, Pacer's blocks and assignment deadlines. It's drawn straight from your calendar and Canvas, so it doesn't use Gemini credits.
+
 To chat in the terminal instead, run `venv/Scripts/python assistant.py`.
 
 ## Run it on a server

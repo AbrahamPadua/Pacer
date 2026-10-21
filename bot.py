@@ -1,9 +1,12 @@
+import io
 import os
+import re
 import asyncio
 import datetime
 import discord
 from assistant import get_chat
 from scheduler_tools import TZ
+from week_image import week_png
 
 OWNER_ID = int(os.environ["DISCORD_OWNER_ID"])
 
@@ -24,6 +27,16 @@ async def on_message(message):
     if message.author.id != OWNER_ID:
         return
     if not (isinstance(message.channel, discord.DMChannel) or bot.user in message.mentions):
+        return
+
+    # "week" (or "@Pacer week") sends the week image straight from the calendar, without asking Gemini
+    if re.sub(r"<@!?\d+>", "", message.content).strip().lower() == "week":
+        async with lock, message.channel.typing():
+            try:
+                reply = {"file": discord.File(io.BytesIO(await asyncio.to_thread(week_png)), "week.png")}
+            except Exception as e:
+                reply = {"content": f"Something broke: {e}"}
+        await message.reply(**reply)
         return
 
     # The system prompt only knows when today's chat started, so send the real time with every message
