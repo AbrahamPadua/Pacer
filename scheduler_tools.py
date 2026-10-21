@@ -203,6 +203,30 @@ def log_task_progress_and_learn(task_id: str, minutes_worked_today: int, total_p
     }
 
 
+def create_calendar_event(title: str, start_iso: str, end_iso: str, recurrence: str = "", movable: bool = False) -> dict:
+    """Adds any event to the user's Google Calendar: meetings, classes, lab hours, appointments, one-time or repeating.
+    `recurrence` is an iCalendar RRULE for repeating events, for example "RRULE:FREQ=WEEKLY;BYDAY=TU" or
+    "RRULE:FREQ=WEEKLY;BYDAY=MO,WE;UNTIL=20261211T235959Z"; leave it empty for a one-time event. `start_iso` and
+    `end_iso` are the first occurrence. Set `movable` only for personal blocks Pacer may reschedule later; meetings,
+    classes and anything involving other people stay fixed."""
+    if recurrence and not (recurrence.startswith("RRULE:") and "FREQ=" in recurrence):
+        return {"error": 'recurrence must be an RRULE like "RRULE:FREQ=WEEKLY;BYDAY=TU"'}
+    start, end = datetime.datetime.fromisoformat(start_iso), datetime.datetime.fromisoformat(end_iso)
+    if end <= start:
+        return {"error": "end must be after start"}
+    body = {
+        "summary": f"[Flex] {title}" if movable else title,
+        # timeZone is required for repeats and keeps them at the same local time across daylight saving changes
+        "start": {"dateTime": start.isoformat(), "timeZone": TZ.key},
+        "end": {"dateTime": end.isoformat(), "timeZone": TZ.key},
+        "extendedProperties": {"private": {"flexibility": "movable" if movable else "fixed"}},
+    }
+    if recurrence:
+        body["recurrence"] = [recurrence]
+    event = get_calendar_service().events().insert(calendarId="primary", body=body).execute()
+    return {"status": "created", "event_id": event["id"], "title": body["summary"], "repeats": recurrence or "no"}
+
+
 def move_calendar_event(gcal_event_id: str, new_start_iso: str, duration_mins: int) -> dict:
     """Moves an existing flexible Google Calendar block to a new time slot."""
     service = get_calendar_service()

@@ -51,6 +51,8 @@ Send `week` to get a picture of today and the next 6 days, with your classes, Pa
 
 Questions about your schedule get a picture too. Ask about one day ("what does my day look like?", "when am I free Friday?") and Pacer lists your free time, counting 8 AM to 10 PM, and attaches a picture of that day. Ask about the week and it attaches the week picture.
 
+Pacer can also add things to your calendar, once or repeating ("add my SCCN meeting, Tuesdays 3-4 PM"). Meetings and classes it adds are fixed, so it never moves them later. If you leave out something it needs, like the day, it asks.
+
 To chat in the terminal instead, run `venv/Scripts/python assistant.py`.
 
 ## Run it on a server

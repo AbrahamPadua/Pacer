@@ -115,6 +115,37 @@ class ScheduleTest(FakeDbTest):
         self.assertEqual([e["event_id"] for e in st.check_calendar_availability(70)], ["a", "b"])
 
 
+class CreateEventTest(unittest.TestCase):
+    def create(self, *args, **kwargs):
+        self.inserted = []
+        events = SimpleNamespace(insert=lambda calendarId, body: self.inserted.append(body) or
+                                 SimpleNamespace(execute=lambda: {"id": "new1"}))
+        self.enterContext(mock.patch.object(st, "get_calendar_service", lambda: SimpleNamespace(events=lambda: events)))
+        return st.create_calendar_event(*args, **kwargs)
+
+    def test_weekly_fixed_meeting(self):
+        result = self.create("De Sa lab meeting", "2026-10-21T15:30:00", "2026-10-21T16:30:00",
+                             recurrence="RRULE:FREQ=WEEKLY;BYDAY=WE")
+        self.assertEqual(result, {"status": "created", "event_id": "new1", "title": "De Sa lab meeting",
+                                  "repeats": "RRULE:FREQ=WEEKLY;BYDAY=WE"})
+        body = self.inserted[0]
+        self.assertEqual(body["recurrence"], ["RRULE:FREQ=WEEKLY;BYDAY=WE"])
+        self.assertEqual(body["start"], {"dateTime": "2026-10-21T15:30:00", "timeZone": "America/Los_Angeles"})
+        self.assertEqual(body["extendedProperties"]["private"]["flexibility"], "fixed")  # the move guard keeps it put
+
+    def test_one_time_movable_block(self):
+        self.create("Laundry", "2026-10-24T10:00:00-07:00", "2026-10-24T11:00:00-07:00", movable=True)
+        body = self.inserted[0]
+        self.assertEqual(body["summary"], "[Flex] Laundry")
+        self.assertEqual(body["extendedProperties"]["private"]["flexibility"], "movable")
+        self.assertNotIn("recurrence", body)
+
+    def test_bad_input_never_reaches_google(self):
+        self.assertIn("error", self.create("SCCN", "2026-10-27T15:00:00", "2026-10-27T16:00:00", recurrence="every Tuesday"))
+        self.assertIn("error", self.create("SCCN", "2026-10-27T16:00:00", "2026-10-27T15:00:00"))
+        self.assertEqual(self.inserted, [])
+
+
 class MoveGuardTest(unittest.TestCase):
     def move(self, event):
         updates = []

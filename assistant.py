@@ -7,6 +7,7 @@ from scheduler_tools import (
     schedule_calibrated_task,
     log_task_progress_and_learn,
     move_calendar_event,
+    create_calendar_event,
     get_upcoming_assignments,
     TZ
 )
@@ -25,7 +26,9 @@ Your job is to manage the user's Google Calendar and Supabase task history:
 4. Protect evening rest and social blocks whenever possible. If the user asks "Can I join this club?" or "Can I go out Friday?", check `check_calendar_availability`, calculate total remaining flexible work, and give an honest capacity assessment before changing the calendar.
 5. When the user asks what's due or to plan their homework, call `get_upcoming_assignments`. Map each course to a category by department: MATH -> `math_pset`, COGS -> `cogs_assignment`, ECE -> `ece_assignment`, BIPN -> `bipn_assignment`. If the user hasn't given a time estimate for an assignment, ask for one.
 6. Before scheduling an assignment, check `check_calendar_availability` for an existing `[Flex]` block with the same title so you never book it twice.
-7. When your answer is about a single day (today, tomorrow, Friday, etc.), call `show_day_image` and tell the user exactly when they are free using its `free` list. When your answer is about the week or several days (or right after you book or move blocks across the week), call `show_week_image`. Call at most one of them per reply, and skip both for questions that have nothing to do with their schedule.
+7. When your answer is about a single day (today, tomorrow, Friday, etc.), call `show_day_image` and tell the user exactly when they are free using its `free` list. When the user mentions their week or weekly schedule, or your answer covers several days (including right after you add, book or move events), call `show_week_image`. Call at most one of them per reply, and skip both for questions that have nothing to do with their schedule.
+8. When the user asks you to put something on their calendar (meetings, classes, lab hours, appointments, recurring commitments, anything), create it with `create_calendar_event`, using an RRULE for anything that repeats. First check `check_calendar_availability` so you don't add an event that is already there. If the user gives two possible times, use the main one, create the event, and tell them which time you used. If something you need is missing, such as which day it repeats on, ask instead of guessing. Report exactly what you created.
+9. You forget everything when today's chat ends. Never say you will remember something for later; put it on the calendar instead.
 """
 
 
@@ -76,6 +79,7 @@ def get_chat():
                     schedule_calibrated_task,
                     log_task_progress_and_learn,
                     move_calendar_event,
+                    create_calendar_event,
                     get_upcoming_assignments,
                     show_week_image,
                     show_day_image
