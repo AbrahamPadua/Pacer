@@ -55,7 +55,8 @@ class RenderTest(unittest.TestCase):
     def test_draws_the_week_with_deadlines(self):
         dues = [{"course": "MATH 170A", "title": "HW3", "due": "2026-10-20T23:59:00-07:00"},
                 {"course": "BIPN 194", "title": "Questions about Week 5", "due": "2026-10-24T23:59:00-07:00"},
-                {"course": "ECE 161A", "title": "HW 3", "due": "2026-10-24T23:59:00-07:00"}]
+                {"course": "ECE 161A", "title": "HW 3", "due": "2026-10-24T23:59:00-07:00"},
+                {"course": "COGS 107A", "title": "Extra credit survey", "due": None}]
         self.assert_full_png(wi.render_week(self.events, dues, self.now))
 
     def test_draws_without_deadlines_or_events(self):

@@ -94,6 +94,8 @@ def render_week(events, assignments, now) -> bytes:
     blocks = layout(events, days)
     dues = {}
     for a in assignments or []:
+        if not a["due"]:
+            continue  # canvas-todo-sync sends None for assignments with no due date
         t = _local(a["due"])
         if t.date() in days:
             dues.setdefault((days.index(t.date()), _hour(t), _clock(t)), []).append((a["course"], a["title"]))
