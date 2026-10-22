@@ -1,4 +1,5 @@
 import datetime
+import functools
 from google import genai
 from google.genai import types
 from scheduler_tools import (
@@ -29,7 +30,34 @@ Your job is to manage the user's Google Calendar and Supabase task history:
 7. When your answer is about a single day (today, tomorrow, Friday, etc.), call `show_day_image` and tell the user exactly when they are free using its `free` list. When the user mentions their week or weekly schedule, or your answer covers several days (including right after you add, book or move events), call `show_week_image`. Call at most one of them per reply, and skip both for questions that have nothing to do with their schedule.
 8. When the user asks you to put something on their calendar (meetings, classes, lab hours, appointments, recurring commitments, anything), create it with `create_calendar_event`, using an RRULE for anything that repeats. First check `check_calendar_availability` so you don't add an event that is already there. If the user gives two possible times, use the main one, create the event, and tell them which time you used. If something you need is missing, such as which day it repeats on, ask instead of guessing. Report exactly what you created.
 9. You forget everything when today's chat ends. Never say you will remember something for later; put it on the calendar instead.
+10. If a tool returns an error, tell the user plainly what failed and was not saved. Never say something was booked, created, moved or logged unless its tool succeeded.
 """
+
+
+_failed_writes = []  # what this reply's write tools couldn't save; read and cleared by the bot
+
+
+def _track(tool):
+    """Notes a write tool's failures in code, because Gemini has replied "booked" after a tool returned an error."""
+    @functools.wraps(tool)  # keeps the name, docstring and parameters Gemini reads
+    def tracked(*args, **kwargs):
+        what = kwargs.get("title") or tool.__name__.replace("_", " ")
+        try:
+            result = tool(*args, **kwargs)
+        except Exception as e:
+            _failed_writes.append(f"{what}: {e}")
+            raise
+        if isinstance(result, dict) and "error" in result:
+            _failed_writes.append(f"{what}: {result['error']}")
+        return result
+    return tracked
+
+
+def pop_failed_writes() -> list:
+    """The failures recorded since the last call, then clears them."""
+    failed = _failed_writes[:]
+    _failed_writes.clear()
+    return failed
 
 
 _image_request = None  # ("week", None) or ("day", date); safe because the bot handles one message at a time
@@ -76,10 +104,10 @@ def get_chat():
                 tools=[
                     get_calibrated_estimate,
                     check_calendar_availability,
-                    schedule_calibrated_task,
-                    log_task_progress_and_learn,
-                    move_calendar_event,
-                    create_calendar_event,
+                    _track(schedule_calibrated_task),
+                    _track(log_task_progress_and_learn),
+                    _track(move_calendar_event),
+                    _track(create_calendar_event),
                     get_upcoming_assignments,
                     show_week_image,
                     show_day_image

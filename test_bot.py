@@ -109,6 +109,23 @@ class OnMessageTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((self.replies, self.files, drawn),
                          (["You are free 8 AM-10 PM."], ["day.png"], [datetime.date(2026, 10, 23)]))
 
+    async def test_failed_writes_show_under_a_confident_reply(self):
+        def schedule_calibrated_task(title):
+            raise RuntimeError("Supabase is down")
+        tracked = assistant._track(schedule_calibrated_task)
+
+        def gemini_claims_success(prompt):
+            try:
+                tracked(title="MATH 170A HW4 (Part 1)")
+            except RuntimeError:
+                pass  # the SDK hands tool errors to Gemini instead of raising
+            return SimpleNamespace(text="I have scheduled your HW4 block.")
+        assistant._failed_writes.append("old: left over from a reply that crashed")
+        with mock.patch.object(bot, "get_chat", lambda: SimpleNamespace(send_message=gemini_claims_success)):
+            await self.send("book HW4 thursday at 4")
+        self.assertEqual(self.replies,
+                         ["I have scheduled your HW4 block.\n\nNot saved: MATH 170A HW4 (Part 1): Supabase is down"])
+
     async def test_leftover_picture_request_is_dropped(self):
         assistant._image_request = ("week", None)  # a reply that failed after Gemini called the tool
         await self.send("thanks!")

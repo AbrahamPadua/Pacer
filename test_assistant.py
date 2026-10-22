@@ -9,7 +9,9 @@ os.environ["SUPABASE_URL"] = "https://example.supabase.co"
 os.environ["SUPABASE_KEY"] = "sb_secret_test"
 os.environ["GEMINI_API_KEY"] = "test"
 import assistant
+import scheduler_tools
 import week_image as wi
+from google.genai import types
 
 
 class DailyChatTest(unittest.TestCase):
@@ -53,6 +55,36 @@ class ImageRequestTest(unittest.TestCase):
         self.assertIn("status", res)
         self.assertEqual(assistant.pop_image_request(), ("day", datetime.date(2026, 10, 23)))
         self.assertIsNone(assistant.pop_image_request())
+
+
+class TrackedWriteTest(unittest.TestCase):
+    def setUp(self):
+        assistant.pop_failed_writes()
+
+    def test_failures_are_recorded_and_successes_pass_through(self):
+        def create_calendar_event(title: str) -> dict:
+            if title == "Broken":
+                raise RuntimeError("Google is down")
+            return {"error": "end must be after start"} if title == "Refused" else {"status": "created"}
+        tracked = assistant._track(create_calendar_event)
+        self.assertEqual(tracked(title="Lab"), {"status": "created"})
+        self.assertEqual(tracked(title="Refused"), {"error": "end must be after start"})
+        with self.assertRaises(RuntimeError):  # still raised, so Gemini sees the error too
+            tracked(title="Broken")
+        self.assertEqual(assistant.pop_failed_writes(), ["Refused: end must be after start", "Broken: Google is down"])
+        self.assertEqual(assistant.pop_failed_writes(), [])
+
+    def test_tool_without_a_title_is_named_by_what_it_does(self):
+        def log_task_progress_and_learn(task_id: str) -> dict:
+            return {"error": "Task already completed"}
+        assistant._track(log_task_progress_and_learn)(task_id="7")
+        self.assertEqual(assistant.pop_failed_writes(), ["log task progress and learn: Task already completed"])
+
+    def test_gemini_sees_the_same_tool_after_wrapping(self):
+        for tool in (scheduler_tools.schedule_calibrated_task, scheduler_tools.log_task_progress_and_learn,
+                     scheduler_tools.move_calendar_event, scheduler_tools.create_calendar_event):
+            as_declared = lambda f: types.FunctionDeclaration.from_callable(client=assistant.client, callable=f)
+            self.assertEqual(as_declared(assistant._track(tool)), as_declared(tool))
 
 
 if __name__ == "__main__":

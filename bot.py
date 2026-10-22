@@ -4,7 +4,7 @@ import re
 import asyncio
 import datetime
 import discord
-from assistant import get_chat, pop_image_request
+from assistant import get_chat, pop_failed_writes, pop_image_request
 from scheduler_tools import TZ
 from week_image import day_png, week_png
 
@@ -46,10 +46,14 @@ async def on_message(message):
     image, filename = None, None
     async with lock, message.channel.typing():
         try:
-            pop_image_request()  # drop a request left over from a reply that failed midway
+            pop_image_request()  # drop a request and failures left over from a reply that failed midway
+            pop_failed_writes()
             # send_message blocks while Gemini calls Calendar/Supabase; keep Discord's event loop free
             response = await asyncio.to_thread(get_chat().send_message, prompt)
             text = response.text or "(no reply)"
+            # Shown from what the tools reported, whatever Gemini's own wording says
+            if failed := pop_failed_writes():
+                text += "\n\n" + "\n".join(f"Not saved: {f}" for f in failed)
             if req := pop_image_request():  # Gemini called show_week_image or show_day_image
                 kind, day = req
                 try:
