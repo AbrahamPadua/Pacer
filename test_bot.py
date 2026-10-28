@@ -5,6 +5,7 @@ import datetime
 import unittest
 from types import SimpleNamespace
 from unittest import mock
+from aiohttp.test_utils import TestClient, TestServer
 
 # Dummy values win over .env (load_dotenv never overrides), so tests can't touch real data or spend credits
 os.environ.update(SUPABASE_URL="https://example.supabase.co", SUPABASE_KEY="sb_secret_test",
@@ -157,6 +158,39 @@ class OnMessageTest(unittest.IsolatedAsyncioTestCase):
         with mock.patch.object(bot, "week_png", broken_week):
             await self.send("week")
         self.assertEqual(self.replies, ["Something broke: Gemini credits depleted", "Something broke: calendar down"])
+
+
+class CoverTest(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        self.drawn = []
+        self.enterContext(mock.patch.object(bot, "COVER_TOKEN", "s3cret-token"))
+        self.enterContext(mock.patch.object(bot, "lock", asyncio.Lock()))
+        self.enterContext(mock.patch.object(bot, "day_png",
+                                            lambda d, size: self.drawn.append((d, size)) or b"\x89PNG fake cover"))
+        self.client = TestClient(TestServer(bot.cover_app()))
+        await self.client.start_server()
+        self.addAsyncCleanup(self.client.close)
+
+    async def test_secret_url_gets_todays_cover_picture(self):
+        res = await self.client.get("/cover/s3cret-token.png?t=1730")  # widget apps add a query to dodge their cache
+        self.assertEqual((res.status, res.content_type, await res.read()), (200, "image/png", b"\x89PNG fake cover"))
+        self.assertEqual(res.headers["Cache-Control"], "no-store")
+        self.assertEqual(self.drawn, [(datetime.datetime.now(bot.TZ).date(), wi.COVER)])
+
+    async def test_wrong_or_missing_token_gets_nothing(self):
+        for path in ["/cover/wrong.png", "/cover/s3cret-toke.png", "/cover/s3cret-token", "/cover/%C3%A9.png", "/"]:
+            res = await self.client.get(path)
+            self.assertEqual(res.status, 404, path)
+        self.assertEqual(self.drawn, [])
+
+    async def test_server_listens_on_localhost_only_and_only_with_a_token(self):
+        site = mock.MagicMock(return_value=SimpleNamespace(start=mock.AsyncMock()))
+        with mock.patch.object(bot.web, "AppRunner", lambda app: SimpleNamespace(setup=mock.AsyncMock())), \
+                mock.patch.object(bot.web, "TCPSite", site):
+            await bot.setup_hook()
+            with mock.patch.object(bot, "COVER_TOKEN", ""):
+                await bot.setup_hook()
+        site.assert_called_once_with(mock.ANY, "127.0.0.1", 8080)
 
 
 if __name__ == "__main__":

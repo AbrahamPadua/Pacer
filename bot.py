@@ -3,18 +3,47 @@ import os
 import re
 import asyncio
 import datetime
+import secrets
 import discord
+from aiohttp import web
 from assistant import get_chat, pop_failed_writes, pop_image_request
 from scheduler_tools import TZ
-from week_image import day_png, week_png
+from week_image import COVER, day_png, week_png
 
 OWNER_ID = int(os.environ["DISCORD_OWNER_ID"])
 PACER_CHANNEL_ID = int(os.environ.get("PACER_CHANNEL_ID") or 0)  # optional; 0 matches no channel
+COVER_TOKEN = os.environ.get("COVER_TOKEN", "")  # optional; empty serves no cover picture
+COVER_PORT = 8080
 
 intents = discord.Intents.default()
 intents.message_content = True
 bot = discord.Client(intents=intents)
 lock = asyncio.Lock()  # one shared chat per day, so handle one message at a time
+
+
+async def cover(request):
+    """Today's picture, sized for the phone's cover screen, for whoever has the secret URL."""
+    # The token is the URL's only lock: compare in constant time, as bytes so odd characters can't raise
+    if not secrets.compare_digest(request.match_info["token"].encode(), COVER_TOKEN.encode()):
+        raise web.HTTPNotFound()
+    async with lock:  # don't read the calendar while a chat reply is using it
+        png = await asyncio.to_thread(day_png, datetime.datetime.now(TZ).date(), COVER)
+    return web.Response(body=png, content_type="image/png", headers={"Cache-Control": "no-store"})
+
+
+def cover_app():
+    app = web.Application()
+    app.router.add_get("/cover/{token}.png", cover)
+    return app
+
+
+@bot.event
+async def setup_hook():  # runs once before Discord connects, unlike on_ready
+    if COVER_TOKEN:
+        runner = web.AppRunner(cover_app())
+        await runner.setup()
+        # Localhost only: Caddy in front adds HTTPS, so the token never crosses the network in plain text
+        await web.TCPSite(runner, "127.0.0.1", COVER_PORT).start()
 
 
 @bot.event
