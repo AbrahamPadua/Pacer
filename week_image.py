@@ -22,6 +22,7 @@ PALETTE = [("#38BDF8", "#142B3B", "#0E5A8A", "#BAE6FD"), ("#10B981", "#132E28", 
            ("#A855F7", "#291D40", "#5F28A3", "#E9D5FF"), ("#84CC16", "#233015", "#487510", "#D9F99D")]
 NO_COURSE = ("#64748B", "#1E2430", "#334155", "#CBD5E1")
 FIG_W, DAY_W, FIG_H, DPI = 14.0, 4.5, 9.8, 180
+COVER = (5.25, 5.8)  # inches; 945 x 1044 at DPI, the shape of the Galaxy Z Flip7 cover screen (948 x 1048)
 
 
 def _assignments():
@@ -39,13 +40,13 @@ def week_png() -> bytes:
     return render_week(list_events(start, start + dt.timedelta(days=7)), _assignments(), now)
 
 
-def day_png(day: dt.date) -> bytes:
+def day_png(day: dt.date, size=(DAY_W, FIG_H)) -> bytes:
     """One day with its deadlines and free-time bands. Reads the week picture's 7 days when the day is in them,
     so each course gets the same color in both pictures."""
     now = dt.datetime.now(TZ)
     first = now.date() if 0 <= (day - now.date()).days < 7 else day
     start = dt.datetime.combine(first, dt.time(0), TZ)
-    return render_day(list_events(start, start + dt.timedelta(days=7)), _assignments(), now, day)
+    return render_day(list_events(start, start + dt.timedelta(days=7)), _assignments(), now, day, size)
 
 
 def _local(s):
@@ -149,17 +150,17 @@ def course_colors(events, assignments):
 
 def render_week(events, assignments, now) -> bytes:
     """The 7 days from `now` as a PNG. `assignments` is None when the deadlines couldn't be read."""
-    return _render(events, assignments, now, [now.date() + dt.timedelta(d) for d in range(7)])
+    return _render(events, assignments, now, [now.date() + dt.timedelta(d) for d in range(7)], (FIG_W, FIG_H))
 
 
-def render_day(events, assignments, now, day) -> bytes:
-    """One day as a phone-shaped PNG, with free-time bands behind the event cards."""
-    return _render(events, assignments, now, [day])
+def render_day(events, assignments, now, day, size=(DAY_W, FIG_H)) -> bytes:
+    """One day as a PNG `size` inches big (phone-shaped by default), with free-time bands behind the event cards."""
+    return _render(events, assignments, now, [day], size)
 
 
-def _render(events, assignments, now, days) -> bytes:
+def _render(events, assignments, now, days, size) -> bytes:
     n = len(days)
-    fig_w = FIG_W if n > 1 else DAY_W
+    fig_w, fig_h = size
     # Keep the hour-label margin (0.812") and right edge (0.28") fixed in inches across widths
     left, width = 0.812 / fig_w, (fig_w - 1.092) / fig_w
     grid_box, head_box = (left, 0.032, width, 0.802), (left, 0.838, width, 0.145)
@@ -175,7 +176,7 @@ def _render(events, assignments, now, days) -> bytes:
     colors = course_colors(events, assignments)
 
     top, bottom = visible_hours(blocks, [h for _, h, _ in dues])
-    fig = Figure(figsize=(fig_w, FIG_H), dpi=DPI, facecolor=BG)
+    fig = Figure(figsize=(fig_w, fig_h), dpi=DPI, facecolor=BG)
     ax, head = fig.add_axes(grid_box, facecolor=COLUMN), fig.add_axes(head_box)
     ax.set_xlim(0, n)
     ax.set_ylim(bottom, top)
@@ -184,9 +185,9 @@ def _render(events, assignments, now, days) -> bytes:
     head.axis("off")
     # Sizes below are in points; px and py turn one point into data units across and down
     col_pt = fig_w * grid_box[2] * 72 / n
-    hour_pt = FIG_H * grid_box[3] * 72 / (bottom - top)
+    hour_pt = fig_h * grid_box[3] * 72 / (bottom - top)
     px, py, aspect = 1 / col_pt, 1 / hour_pt, col_pt / hour_pt
-    head_aspect = col_pt / (FIG_H * head_box[3] * 72)
+    head_aspect = col_pt / (fig_h * head_box[3] * 72)
 
     if n > 1:
         # Header: title, date range, legend, one card per day

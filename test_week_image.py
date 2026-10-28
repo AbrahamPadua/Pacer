@@ -117,6 +117,10 @@ class RenderTest(unittest.TestCase):
         self.assert_full_png(wi.render_day(self.events, None, self.now, dt.date(2026, 10, 21)), (810, 1764))
         self.assert_full_png(wi.render_day([], [], self.now, dt.date(2026, 10, 23)), (810, 1764))
 
+    def test_draws_a_day_for_the_cover_screen(self):
+        png = wi.render_day(self.events, self.dues, self.now, dt.date(2026, 10, 20), wi.COVER)
+        self.assert_full_png(png, (945, 1044))
+
 
 class ColorTest(unittest.TestCase):
     def test_colors_come_from_everything_passed_in(self):
