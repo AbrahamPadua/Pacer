@@ -114,6 +114,34 @@ cd ~/Pacer && git pull && venv/bin/pip install -r requirements.txt && sudo syste
 
 If Google signs you out, the bot replies that the sign-in expired. Sign in again on your computer, copy the new `token.json` to the server, and run `sudo systemctl restart pacer`.
 
+## See today on your phone
+
+Pacer can serve today's picture at a secret URL, sized for the Galaxy Z Flip7 cover screen, and a picture widget on the phone loads it from there. These steps assume the Azure server setup above.
+
+1. Make a random token on the server and add it to `.env`:
+   ```
+   python3 -c "import secrets; print(secrets.token_urlsafe(32))"
+   ```
+   ```
+   COVER_TOKEN=<the token>
+   ```
+   Then run `sudo systemctl restart pacer`. The bot now serves the picture at `http://127.0.0.1:8080/cover/<token>.png`, which only the server itself can open.
+2. Give the server a name. In the Azure portal, open the VM, click DNS name on the Overview page and set a DNS name label. The server becomes `<label>.<region>.cloudapp.azure.com`. In the VM's network settings, add inbound rules that allow TCP ports 80 and 443.
+3. Install Caddy. It gets an HTTPS certificate for that name and passes requests on to the bot, so the token is encrypted on its way to your phone:
+   ```
+   sudo apt install -y caddy
+   sudo tee /etc/caddy/Caddyfile > /dev/null <<EOF
+   <label>.<region>.cloudapp.azure.com {
+       reverse_proxy 127.0.0.1:8080
+   }
+   EOF
+   sudo systemctl reload caddy
+   ```
+   Open `https://<label>.<region>.cloudapp.azure.com/cover/<token>.png` in your phone's browser. You should see today.
+4. On the phone, add a widget that shows a picture from a URL, such as one made in KWGT, and give it that address. To put it on the cover screen, go to Settings > Cover screen > Widgets. If the widget app isn't listed there, add it through Good Lock's MultiStar module. If the widget keeps showing an old picture, put `?t=` and something that changes, like the hour, at the end of the URL. Pacer ignores everything after the `?`.
+
+Anyone with the URL can see your day, so keep the token private. To change it, set a new `COVER_TOKEN` and restart the bot, and the old URL stops working. Each refresh reads your calendar and deadlines, which can take 10 seconds, mostly for the deadlines.
+
 ## Tests
 
 ```
