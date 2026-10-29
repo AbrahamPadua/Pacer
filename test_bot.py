@@ -167,6 +167,7 @@ class CoverTest(unittest.IsolatedAsyncioTestCase):
         self.enterContext(mock.patch.object(bot, "lock", asyncio.Lock()))
         self.enterContext(mock.patch.object(bot, "day_png",
                                             lambda d, size: self.drawn.append((d, size)) or b"\x89PNG fake cover"))
+        self.enterContext(mock.patch.object(bot, "week_png", lambda: self.drawn.append("week") or b"\x89PNG fake week"))
         self.client = TestClient(TestServer(bot.cover_app()))
         await self.client.start_server()
         self.addAsyncCleanup(self.client.close)
@@ -177,8 +178,13 @@ class CoverTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(res.headers["Cache-Control"], "no-store")
         self.assertEqual(self.drawn, [(datetime.datetime.now(bot.TZ).date(), wi.COVER)])
 
+    async def test_secret_url_gets_the_week_picture(self):
+        res = await self.client.get("/week/s3cret-token.png")
+        self.assertEqual((res.status, await res.read(), self.drawn), (200, b"\x89PNG fake week", ["week"]))
+
     async def test_wrong_or_missing_token_gets_nothing(self):
-        for path in ["/cover/wrong.png", "/cover/s3cret-toke.png", "/cover/s3cret-token", "/cover/%C3%A9.png", "/"]:
+        for path in ["/cover/wrong.png", "/cover/s3cret-toke.png", "/cover/s3cret-token", "/cover/%C3%A9.png", "/",
+                     "/week/wrong.png", "/month/s3cret-token.png"]:
             res = await self.client.get(path)
             self.assertEqual(res.status, 404, path)
         self.assertEqual(self.drawn, [])

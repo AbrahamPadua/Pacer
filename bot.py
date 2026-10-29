@@ -21,19 +21,20 @@ bot = discord.Client(intents=intents)
 lock = asyncio.Lock()  # one shared chat per day, so handle one message at a time
 
 
-async def cover(request):
-    """Today's picture, sized for the phone's cover screen, for whoever has the secret URL."""
+async def picture(request):
+    """Today sized for the phone's cover screen, or the week picture, for whoever has the secret URL."""
     # The token is the URL's only lock: compare in constant time, as bytes so odd characters can't raise
     if not secrets.compare_digest(request.match_info["token"].encode(), COVER_TOKEN.encode()):
         raise web.HTTPNotFound()
     async with lock:  # don't read the calendar while a chat reply is using it
-        png = await asyncio.to_thread(day_png, datetime.datetime.now(TZ).date(), COVER)
+        png = await asyncio.to_thread(week_png) if request.match_info["kind"] == "week" else \
+            await asyncio.to_thread(day_png, datetime.datetime.now(TZ).date(), COVER)
     return web.Response(body=png, content_type="image/png", headers={"Cache-Control": "no-store"})
 
 
 def cover_app():
     app = web.Application()
-    app.router.add_get("/cover/{token}.png", cover)
+    app.router.add_get("/{kind:cover|week}/{token}.png", picture)
     return app
 
 
