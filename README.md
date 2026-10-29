@@ -116,7 +116,7 @@ If Google signs you out, the bot replies that the sign-in expired. Sign in again
 
 ## See today on your phone
 
-Pacer can serve today's picture at a secret URL, sized for the Galaxy Z Flip7 cover screen, and a picture widget on the phone loads it from there. These steps assume the Azure server setup above.
+Pacer can serve today's picture at a secret URL, sized for the Galaxy Z Flip7 cover screen, plus the week picture for the main screen. These steps assume the Azure server setup above.
 
 1. Make a random token on the server and add it to `.env`:
    ```
@@ -138,7 +138,9 @@ Pacer can serve today's picture at a secret URL, sized for the Galaxy Z Flip7 co
    sudo systemctl reload caddy
    ```
    Open `https://<label>.<region>.cloudapp.azure.com/cover/<token>.png` in your phone's browser. You should see today.
-4. On the phone, add a widget that shows a picture from a URL, such as one made in KWGT, and give it that address. To put it on the cover screen, go to Settings > Cover screen > Widgets. If the widget app isn't listed there, add it through Good Lock's MultiStar module. If the widget keeps showing an old picture, put `?t=` and something that changes, like the hour, at the end of the URL. Pacer ignores everything after the `?`.
+4. Leave that page open in Chrome. The cover screen only takes Samsung's own widgets and a few others, so a picture widget can't go there, but Good Lock can put Chrome there. Install Good Lock from the Galaxy Store, add its MultiStar plugin, open I ♡ Galaxy Foldable > Launcher Widget and pick Chrome. Then add the Good Lock Launcher widget in Settings > Cover screen > Widgets. With the phone closed, swipe to the launcher and tap Chrome to see today. Pull down to refresh if the picture is old.
+
+The same token opens the week picture at `https://<label>.<region>.cloudapp.azure.com/week/<token>.png`. It's too wide for the cover screen, so open it on the unfolded phone and turn the phone sideways.
 
 Anyone with the URL can see your day, so keep the token private. To change it, set a new `COVER_TOKEN` and restart the bot, and the old URL stops working. Each refresh reads your calendar and deadlines, which can take 10 seconds, mostly for the deadlines.
 
