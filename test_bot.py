@@ -173,7 +173,7 @@ class CoverTest(unittest.IsolatedAsyncioTestCase):
         self.addAsyncCleanup(self.client.close)
 
     async def test_secret_url_gets_todays_cover_picture(self):
-        res = await self.client.get("/cover/s3cret-token.png?t=1730")  # widget apps add a query to dodge their cache
+        res = await self.client.get("/cover/s3cret-token.png")
         self.assertEqual((res.status, res.content_type, await res.read()), (200, "image/png", b"\x89PNG fake cover"))
         self.assertEqual(res.headers["Cache-Control"], "no-store")
         self.assertEqual(self.drawn, [(datetime.datetime.now(bot.TZ).date(), wi.COVER)])

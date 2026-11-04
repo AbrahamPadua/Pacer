@@ -138,7 +138,7 @@ Pacer can serve today's picture at a secret URL, sized for the Galaxy Z Flip7 co
    sudo systemctl reload caddy
    ```
    Open `https://<label>.<region>.cloudapp.azure.com/cover/<token>.png` in your phone's browser. You should see today.
-4. Leave that page open in Chrome. The cover screen only takes Samsung's own widgets and a few others, so a picture widget can't go there, but Good Lock can put Chrome there. Install Good Lock from the Galaxy Store, add its MultiStar plugin, open I ♡ Galaxy Foldable > Launcher Widget and pick Chrome. Then add the Good Lock Launcher widget in Settings > Cover screen > Widgets. With the phone closed, swipe to the launcher and tap Chrome to see today. Pull down to refresh if the picture is old.
+4. Leave that page open in Chrome. Most widget apps can't go on the cover screen, but Good Lock can put Chrome there. Install Good Lock from the Galaxy Store, add its MultiStar plugin, open I ♡ Galaxy Foldable > Launcher Widget and pick Chrome. Then add the Good Lock Launcher widget in Settings > Cover screen > Widgets. With the phone closed, swipe to the launcher and tap Chrome to see today. Pull down to refresh if the picture is old.
 
 The same token opens the week picture at `https://<label>.<region>.cloudapp.azure.com/week/<token>.png`. It's too wide for the cover screen, so open it on the unfolded phone and turn the phone sideways.
 
