@@ -168,7 +168,7 @@ class CoverTest(unittest.IsolatedAsyncioTestCase):
         self.enterContext(mock.patch.object(bot, "day_png",
                                             lambda d, size: self.drawn.append((d, size)) or b"\x89PNG fake cover"))
         self.enterContext(mock.patch.object(bot, "week_png", lambda: self.drawn.append("week") or b"\x89PNG fake week"))
-        self.client = TestClient(TestServer(bot.cover_app()))
+        self.client = TestClient(TestServer(bot.web_app()))
         await self.client.start_server()
         self.addAsyncCleanup(self.client.close)
 
@@ -193,10 +193,67 @@ class CoverTest(unittest.IsolatedAsyncioTestCase):
         site = mock.MagicMock(return_value=SimpleNamespace(start=mock.AsyncMock()))
         with mock.patch.object(bot.web, "AppRunner", lambda app: SimpleNamespace(setup=mock.AsyncMock())), \
                 mock.patch.object(bot.web, "TCPSite", site):
-            await bot.setup_hook()
+            await bot.setup_hook()  # pictures only
             with mock.patch.object(bot, "COVER_TOKEN", ""):
-                await bot.setup_hook()
-        site.assert_called_once_with(mock.ANY, "127.0.0.1", 8080)
+                await bot.setup_hook()  # neither token: no server
+                with mock.patch.object(bot, "ASK_TOKEN", "ask-s3cret"):
+                    await bot.setup_hook()  # Capture messages only
+        self.assertEqual(site.call_args_list, [mock.call(mock.ANY, "127.0.0.1", 8080)] * 2)
+
+
+class AskTest(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        self.prompts = []
+        self.enterContext(mock.patch.object(bot, "ASK_TOKEN", "ask-s3cret"))
+        self.enterContext(mock.patch.object(bot, "lock", asyncio.Lock()))
+        self.enterContext(mock.patch.object(bot, "get_chat", lambda: SimpleNamespace(send_message=self.gemini)))
+        self.client = TestClient(TestServer(bot.web_app()))
+        await self.client.start_server()
+        self.addAsyncCleanup(self.client.close)
+
+    def gemini(self, prompt):
+        self.prompts.append(prompt)
+        return SimpleNamespace(text="Booked HW4 Thursday 4-6 PM.")
+
+    async def post(self, body, token="ask-s3cret"):
+        return await self.client.post("/ask", json=body, headers={"Authorization": f"Bearer {token}"})
+
+    async def test_capture_message_goes_to_gemini_with_the_time(self):
+        res = await self.post({"text": "schedule HW4 thursday at 4"})
+        self.assertEqual((res.status, await res.json()), (200, {"reply": "Booked HW4 Thursday 4-6 PM."}))
+        self.assertTrue(self.prompts[0].startswith("[Current time: "))
+        self.assertTrue(self.prompts[0].endswith("] schedule HW4 thursday at 4"))
+
+    async def test_wrong_missing_or_unset_key_gets_nothing(self):
+        for headers in [{"Authorization": "Bearer wrong"}, {"Authorization": "Bearer "}, {}]:
+            res = await self.client.post("/ask", json={"text": "delete my classes"}, headers=headers)
+            self.assertEqual(res.status, 404, headers)
+        with mock.patch.object(bot, "ASK_TOKEN", ""):  # an unset key must not match an empty one
+            self.assertEqual((await self.post({"text": "delete my classes"}, token="")).status, 404)
+        self.assertEqual((await self.client.get("/cover/ask-s3cret.png")).status, 404)  # the ask key opens no pictures
+        self.assertEqual(self.prompts, [])
+
+    async def test_bad_bodies_are_refused(self):
+        for body in [{}, {"text": ""}, {"text": "  "}, {"text": 5}, ["text"], {"text": "x" * 2001}]:
+            self.assertEqual((await self.post(body)).status, 400, body)
+        res = await self.client.post("/ask", data="not json", headers={"Authorization": "Bearer ask-s3cret"})
+        self.assertEqual((res.status, self.prompts), (400, []))
+
+    async def test_failed_writes_show_in_the_reply(self):
+        def gemini_claims_success(prompt):
+            assistant._failed_writes.append("MATH 170A HW4 (Part 1): Supabase is down")
+            return SimpleNamespace(text="I have scheduled your HW4 block.")
+        with mock.patch.object(bot, "get_chat", lambda: SimpleNamespace(send_message=gemini_claims_success)):
+            res = await self.post({"text": "book HW4 thursday at 4"})
+        self.assertEqual((await res.json())["reply"],
+                         "I have scheduled your HW4 block.\n\nNot saved: MATH 170A HW4 (Part 1): Supabase is down")
+
+    async def test_gemini_failure_is_an_error_not_a_reply(self):
+        def broken(prompt):
+            raise RuntimeError("Gemini credits depleted")
+        with mock.patch.object(bot, "get_chat", lambda: SimpleNamespace(send_message=broken)):
+            res = await self.post({"text": "plan my week"})
+        self.assertEqual((res.status, await res.json()), (502, {"error": "Gemini credits depleted"}))
 
 
 if __name__ == "__main__":
