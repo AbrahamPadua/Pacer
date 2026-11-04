@@ -144,6 +144,19 @@ The same token opens the week picture at `https://<label>.<region>.cloudapp.azur
 
 Anyone with the URL can see your day, so keep the token private. To change it, set a new `COVER_TOKEN` and restart the bot, and the old URL stops working. Each refresh reads your calendar and deadlines, which can take 10 seconds, mostly for the deadlines.
 
+## Schedule things from Capture
+
+Capture, the voice capture app on the phone, can pass anything you ask it to schedule on to Pacer, and Pacer answers the way it does on Discord. This needs the server setup from the section above.
+
+1. Make a second token on the server. It's separate from `COVER_TOKEN` because it can change your calendar, while the picture token can only show it:
+   ```
+   printf '\nASK_TOKEN=%s\n' "$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')" >> ~/Pacer/.env
+   ```
+2. Run `sudo systemctl restart pacer`.
+3. Run `grep ASK_TOKEN ~/Pacer/.env` and paste the value into Capture's settings as the Pacer key.
+
+Capture sends `POST https://<label>.<region>.cloudapp.azure.com/ask` with the header `Authorization: Bearer <ASK_TOKEN>` and a body like `{"text": "schedule HW4 Thursday at 4"}`. Pacer answers with `{"reply": "..."}`, or a 502 and `{"error": "..."}` when Gemini or the calendar fails. These messages go into the same daily chat as Discord, so a follow-up from either place picks up where the other left off.
+
 ## Tests
 
 ```
