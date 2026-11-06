@@ -15,6 +15,9 @@ PACER_CHANNEL_ID = int(os.environ.get("PACER_CHANNEL_ID") or 0)  # optional; 0 m
 COVER_TOKEN = os.environ.get("COVER_TOKEN", "")  # optional; empty serves no pictures
 ASK_TOKEN = os.environ.get("ASK_TOKEN", "")  # optional; empty takes no messages from Capture
 WEB_PORT = 8080
+# /ask replies end up in a phone notification, which shows Markdown as is and cuts off after a line or two
+PHONE_STYLE = ("[This reply shows as a phone notification: plain text with no Markdown, the result first, "
+               "at most two short sentences, and no picture.]")
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -42,6 +45,13 @@ async def ask_gemini(content):
     return text
 
 
+def plain(text):
+    """Markdown Gemini slips in anyway, turned into plain text a notification can show."""
+    text = re.sub(r"\*\*|__|`", "", text)
+    text = re.sub(r"^#+\s*", "", text, flags=re.M)
+    return re.sub(r"^[ \t]*[*-][ \t]+", "• ", text, flags=re.M)
+
+
 async def picture(request):
     """Today sized for the phone's cover screen, or the week picture, for whoever has the secret URL."""
     if not allowed(request.match_info["token"], COVER_TOKEN):
@@ -53,7 +63,7 @@ async def picture(request):
 
 
 async def ask(request):
-    """Answers a message from Capture on the phone like one sent on Discord: {"text": ...} in, {"reply": ...} out."""
+    """A phone app's message, answered like one on Discord but short and plain: {"text": ...} in, {"reply": ...} out."""
     # A header, not the URL, since this token can change the calendar
     if not allowed(request.headers.get("Authorization", "").removeprefix("Bearer "), ASK_TOKEN):
         raise web.HTTPNotFound()
@@ -65,7 +75,7 @@ async def ask(request):
         raise web.HTTPBadRequest(text='Send JSON like {"text": "..."}, up to 2000 characters.')
     async with lock:
         try:
-            return web.json_response({"reply": await ask_gemini(text)})
+            return web.json_response({"reply": plain(await ask_gemini(f"{PHONE_STYLE} {text}"))})
         except Exception as e:
             print(f"ask failed: {e}")  # lands in the server log (journalctl -u pacer)
             return web.json_response({"error": str(e)}, status=502)

@@ -218,11 +218,31 @@ class AskTest(unittest.IsolatedAsyncioTestCase):
     async def post(self, body, token="ask-s3cret"):
         return await self.client.post("/ask", json=body, headers={"Authorization": f"Bearer {token}"})
 
-    async def test_capture_message_goes_to_gemini_with_the_time(self):
+    async def test_phone_message_goes_to_gemini_with_the_time_and_asks_for_a_notification_reply(self):
         res = await self.post({"text": "schedule HW4 thursday at 4"})
         self.assertEqual((res.status, await res.json()), (200, {"reply": "Booked HW4 Thursday 4-6 PM."}))
         self.assertTrue(self.prompts[0].startswith("[Current time: "))
+        self.assertIn(bot.PHONE_STYLE, self.prompts[0])
         self.assertTrue(self.prompts[0].endswith("] schedule HW4 thursday at 4"))
+
+    async def test_markdown_comes_back_plain_for_the_notification(self):
+        def markdown(prompt):
+            return SimpleNamespace(text="**Booked** `HW4`:\n* Thu 4-6 PM\n  - Fri 2-3 PM\n## Free after 6")
+        with mock.patch.object(bot, "get_chat", lambda: SimpleNamespace(send_message=markdown)):
+            res = await self.post({"text": "book HW4"})
+        self.assertEqual((await res.json())["reply"], "Booked HW4:\n• Thu 4-6 PM\n• Fri 2-3 PM\nFree after 6")
+
+    async def test_discord_replies_keep_their_markdown(self):
+        replies = []
+
+        async def reply(content=None, file=None):
+            replies.append(content)
+        self.enterContext(mock.patch.object(bot.bot._connection, "user", BOT_USER))
+        gemini = SimpleNamespace(send_message=lambda prompt: SimpleNamespace(text="**Booked** HW4"))
+        with mock.patch.object(bot, "get_chat", lambda: gemini):
+            await bot.on_message(SimpleNamespace(author=OWNER, content="book HW4", reply=reply, mentions=[BOT_USER],
+                                                 channel=FakeServerChannel()))
+        self.assertEqual(replies, ["**Booked** HW4"])
 
     async def test_wrong_missing_or_unset_key_gets_nothing(self):
         for headers in [{"Authorization": "Bearer wrong"}, {"Authorization": "Bearer "}, {}]:
