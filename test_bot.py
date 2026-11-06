@@ -197,7 +197,7 @@ class CoverTest(unittest.IsolatedAsyncioTestCase):
             with mock.patch.object(bot, "COVER_TOKEN", ""):
                 await bot.setup_hook()  # neither token: no server
                 with mock.patch.object(bot, "ASK_TOKEN", "ask-s3cret"):
-                    await bot.setup_hook()  # Capture messages only
+                    await bot.setup_hook()  # /ask messages only
         self.assertEqual(site.call_args_list, [mock.call(mock.ANY, "127.0.0.1", 8080)] * 2)
 
 

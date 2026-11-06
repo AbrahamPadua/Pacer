@@ -114,9 +114,9 @@ cd ~/Pacer && git pull && venv/bin/pip install -r requirements.txt && sudo syste
 
 If Google signs you out, the bot replies that the sign-in expired. Sign in again on your computer, copy the new `token.json` to the server, and run `sudo systemctl restart pacer`.
 
-## See today on your phone
+## See your schedule outside Discord
 
-Pacer can serve today's picture at a secret URL, sized for the Galaxy Z Flip7 cover screen, plus the week picture for the main screen. These steps assume the Azure server setup above.
+Pacer can serve your schedule as a picture at a secret URL, for a browser or any phone widget that shows a picture from a link. Today's picture is 945 x 1044, small and nearly square to fit a widget. The week picture is the one the `week` command sends. These steps assume the Azure server setup above.
 
 1. Make a random token on the server and add it to `.env`:
    ```
@@ -125,7 +125,7 @@ Pacer can serve today's picture at a secret URL, sized for the Galaxy Z Flip7 co
    ```
    COVER_TOKEN=<the token>
    ```
-   Then run `sudo systemctl restart pacer`. The bot now serves the picture at `http://127.0.0.1:8080/cover/<token>.png`, which only the server itself can open.
+   Then run `sudo systemctl restart pacer`. The bot now serves today's picture at `http://127.0.0.1:8080/cover/<token>.png`, which only the server itself can open.
 2. Give the server a name. In the Azure portal, open the VM, click DNS name on the Overview page and set a DNS name label. The server becomes `<label>.<region>.cloudapp.azure.com`. In the VM's network settings, add inbound rules that allow TCP ports 80 and 443.
 3. Install Caddy. It gets an HTTPS certificate for that name and passes requests on to the bot, so the token is encrypted on its way to your phone:
    ```
@@ -138,24 +138,23 @@ Pacer can serve today's picture at a secret URL, sized for the Galaxy Z Flip7 co
    sudo systemctl reload caddy
    ```
    Open `https://<label>.<region>.cloudapp.azure.com/cover/<token>.png` in your phone's browser. You should see today.
-4. Leave that page open in Chrome. Most widget apps can't go on the cover screen, but Good Lock can put Chrome there. Install Good Lock from the Galaxy Store, add its MultiStar plugin, open I ♡ Galaxy Foldable > Launcher Widget and pick Chrome. Then add the Good Lock Launcher widget in Settings > Cover screen > Widgets. With the phone closed, swipe to the launcher and tap Chrome to see today. Pull down to refresh if the picture is old.
 
-The same token opens the week picture at `https://<label>.<region>.cloudapp.azure.com/week/<token>.png`. It's too wide for the cover screen, so open it on the unfolded phone and turn the phone sideways.
+The week picture is at `https://<label>.<region>.cloudapp.azure.com/week/<token>.png`, with the same token. It's wide, so it reads best on a big screen or a phone turned sideways.
 
 Anyone with the URL can see your day, so keep the token private. To change it, set a new `COVER_TOKEN` and restart the bot, and the old URL stops working. Each refresh reads your calendar and deadlines, which can take 10 seconds, mostly for the deadlines.
 
-## Schedule things from Capture
+## Send Pacer messages from another app
 
-Capture, the voice capture app on the phone, can pass anything you ask it to schedule on to Pacer, and Pacer answers the way it does on Discord. This needs the server setup from the section above.
+An app you trust with your calendar can send Pacer a message over HTTPS and get the answer back, the same as a message on Discord. This needs the server setup from the section above.
 
 1. Make a second token on the server. It's separate from `COVER_TOKEN` because it can change your calendar, while the picture token can only show it:
    ```
    printf '\nASK_TOKEN=%s\n' "$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')" >> ~/Pacer/.env
    ```
 2. Run `sudo systemctl restart pacer`.
-3. Run `grep ASK_TOKEN ~/Pacer/.env` and paste the value into Capture's settings as the Pacer key.
+3. Run `grep ASK_TOKEN ~/Pacer/.env` and give the value to the app.
 
-Capture sends `POST https://<label>.<region>.cloudapp.azure.com/ask` with the header `Authorization: Bearer <ASK_TOKEN>` and a body like `{"text": "schedule HW4 Thursday at 4"}`. Pacer answers with `{"reply": "..."}`, or a 502 and `{"error": "..."}` when Gemini or the calendar fails. These messages go into the same daily chat as Discord, so a follow-up from either place picks up where the other left off.
+The app sends `POST https://<label>.<region>.cloudapp.azure.com/ask` with the header `Authorization: Bearer <ASK_TOKEN>` and a body like `{"text": "schedule HW4 Thursday at 4"}`. Pacer answers with `{"reply": "..."}`, written to show as a phone notification: plain text with no Markdown, the result first, in a sentence or two. When Gemini or the calendar fails, it answers with a 502 and `{"error": "..."}`. These messages go into the same daily chat as Discord, so a follow-up from either place picks up where the other left off.
 
 ## Tests
 

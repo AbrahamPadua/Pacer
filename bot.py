@@ -13,7 +13,7 @@ from week_image import COVER, day_png, week_png
 OWNER_ID = int(os.environ["DISCORD_OWNER_ID"])
 PACER_CHANNEL_ID = int(os.environ.get("PACER_CHANNEL_ID") or 0)  # optional; 0 matches no channel
 COVER_TOKEN = os.environ.get("COVER_TOKEN", "")  # optional; empty serves no pictures
-ASK_TOKEN = os.environ.get("ASK_TOKEN", "")  # optional; empty takes no messages from Capture
+ASK_TOKEN = os.environ.get("ASK_TOKEN", "")  # optional; empty takes no messages over HTTPS
 WEB_PORT = 8080
 # /ask replies end up in a phone notification, which shows Markdown as is and cuts off after a line or two
 PHONE_STYLE = ("[This reply shows as a phone notification: plain text with no Markdown, the result first, "
@@ -53,7 +53,7 @@ def plain(text):
 
 
 async def picture(request):
-    """Today sized for the phone's cover screen, or the week picture, for whoever has the secret URL."""
+    """Today sized for a small phone widget, or the week picture, for whoever has the secret URL."""
     if not allowed(request.match_info["token"], COVER_TOKEN):
         raise web.HTTPNotFound()
     async with lock:  # don't read the calendar while a chat reply is using it
